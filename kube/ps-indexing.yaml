@@ -13,7 +13,7 @@ spec:
         spec:
           containers:
             - name: aaas-container
-              image: atlasanalyticsservice/alarmandalertservice:latest
+              image: sandci/alarms_and_alerts:latest
               command: ["/ps-indexing.sh"]
               # env:
               # - name: MAILGUN_API_KEY
