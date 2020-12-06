@@ -1,0 +1,32 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: ps-indexing
+  namespace: aaas
+spec:
+  schedule: "15,45 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: aaas-container
+              image: atlasanalyticsservice/alarmandalertservice:latest
+              command: ["/ps-indexing.sh"]
+              # env:
+              # - name: MAILGUN_API_KEY
+              #   valueFrom:
+              #     secretKeyRef:
+              #       name: mailgun-secret
+              #       key: api-key
+              volumeMounts:
+                - name: config-volume
+                  mountPath: "/config"
+                  readOnly: true
+          volumes:
+            - name: config-volume
+              secret:
+                secretName: config
+          restartPolicy: Never
