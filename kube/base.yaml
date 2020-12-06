@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: base
+  name: base-naas
   namespace: aaas
 spec:
   containers:
-    - name: aaa-container
+    - name: aaas-container
       image: sandci/alarms_and_alerts:latest
       args: ["sleep", "36500000"]
       # env:
