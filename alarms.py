@@ -9,13 +9,16 @@ class alarms:
         self.subcategory = subcategory
         self.event = event
 
-    def addAlarm(self, body, tags=[]):
+    def addAlarm(self, body, tags=[], level=None, source=None, details=None):
         js = {
             "category": self.category,
             "subcategory": self.subcategory,
             "event": self.event,
             "body": body,
-            "tags": tags
+            "tags": tags,
+            "level": level,
+            "source": source,
+            "details": details
         }
         res = requests.post(host, json=js)
         print(res)
