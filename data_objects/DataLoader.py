@@ -62,9 +62,9 @@ class PrtoblematicPairsDataLoader(object):
             # set value to 1 - the pair is marked problematic between 1% and 100% loss
             # set value to 2 - the pair shows 100% loss
             def setFlag(x):
-                if x>=0 and x<0.01:
+                if x>=0 and x<0.02:
                     return 0
-                elif x>=0.01 and x<1:
+                elif x>=0.02 and x<1:
                     return 1
                 elif x==1:
                     return 2
