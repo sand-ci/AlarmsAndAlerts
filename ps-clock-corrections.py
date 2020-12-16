@@ -60,17 +60,17 @@ df = pd.DataFrame(
 
 # ### plotting the histogram, providing some basic stats
 
-fig, ax = plt.subplots()
-delay_hist = plt.hist(df.delay_mean, bins=60, range=(
-    min(df['delay_mean']), max(df['delay_mean'])))
-ax.set_yscale('log')
-print(df.shape)
-print(df.describe())
-mean = df.delay_mean.mean()
-variance_orig = df.loc[:, 'delay_mean'].var()
-print(variance_orig)
-print('minimum delay_mean is: ', min(
-    df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
+# fig, ax = plt.subplots()
+# delay_hist = plt.hist(df.delay_mean, bins=60, range=(
+#     min(df['delay_mean']), max(df['delay_mean'])))
+# ax.set_yscale('log')
+# print(df.shape)
+# print(df.describe())
+# mean = df.delay_mean.mean()
+# variance_orig = df.loc[:, 'delay_mean'].var()
+# print(variance_orig)
+# print('minimum delay_mean is: ', min(
+#     df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
 
 
 # ### filtering out the hosts with too high OWDs
@@ -85,14 +85,14 @@ while not bad_hosts_df.empty:
     #sum = lambda sh, dh: np.nansum(sh + dh)
     sum = sh.add(dh, fill_value=0).sort_values(ascending=False)
     host_to_remove = sum.index[0]
-    print(host_to_remove)
+#    print(host_to_remove)
     list_of_hosts_with_bad_measurements.append(host_to_remove)
     bad_hosts_df = bad_hosts_df[(bad_hosts_df['src_host'] == host_to_remove)]
     bad_hosts_df = bad_hosts_df[(bad_hosts_df['dest_host'] == host_to_remove)]
-    print(bad_hosts_df)
+#    print(bad_hosts_df)
 
-print("List of hosts with bad measurements:",
-      list_of_hosts_with_bad_measurements)
+# print("List of hosts with bad measurements:",
+#       list_of_hosts_with_bad_measurements)
 
 if len(list_of_hosts_with_bad_measurements):
     ALARM = alarms('Networking', 'Perfsonar', 'bad owd measurements')
@@ -103,7 +103,7 @@ if len(list_of_hosts_with_bad_measurements):
 
 for node in list_of_hosts_with_bad_measurements:
     df = df[(df.src_host != node) & (df.dest_host != node)]
-print('remaining rows:', df.shape[0])
+#print('remaining rows:', df.shape[0])
 
 
 # ### removing one sided nodes and getting the final dataframe to work with
@@ -114,21 +114,21 @@ ds_nodes = np.unique(df['dest_host'].values)
 
 one_sided_nodes = list(set(sc_nodes).symmetric_difference(ds_nodes))
 
-print('one sided nodes: ', one_sided_nodes)
+#print('one sided nodes: ', one_sided_nodes)
 
 # removes one sided nodes from all nodes
 correctable_nodes = np.setdiff1d(all_nodes, one_sided_nodes)
 
-print('one sided nodes', len(one_sided_nodes))
-print('correctable nodes ', len(correctable_nodes))
+#print('one sided nodes', len(one_sided_nodes))
+#print('correctable nodes ', len(correctable_nodes))
 
 for node in one_sided_nodes:
     df = df[(df.src_host != node) & (df.dest_host != node)]
-print('remaining rows:', df.shape[0])
+# print('remaining rows:', df.shape[0])
 
-print('minimum delay_mean is: ', min(
-    df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
-print(df['delay_mean'].var())
+# print('minimum delay_mean is: ', min(
+#     df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
+# print(df['delay_mean'].var())
 
 
 # ### creating a new dataframe with the corrections node-wise
@@ -164,51 +164,51 @@ ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
 for (node, correction) in df_corr.values:
     ALARM.addAlarm(body=node+" "+str(correction))
 
-print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
-plt.hist(df_hosts.correction, range=(
-    min(df_hosts['correction']), max(df_hosts['correction'])))
+# print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
+# plt.hist(df_hosts.correction, range=(
+#     min(df_hosts['correction']), max(df_hosts['correction'])))
 
 df = df.assign(dmc=df.delay_mean)
 
 for (node, correction) in df_hosts.values:
     df.loc[(df['src_host'] == node), 'dmc'] = df['dmc']-correction
     df.loc[(df['dest_host'] == node), 'dmc'] = df['dmc']+correction
-print(df)
-print('variance after', df.dmc.var())
-print('variance before', df['delay_mean'].var())
-print('minimum delay_mean is: ', min(
-    df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
-print('minimum delay_mean_corrected is: ', min(
-    df['dmc']), 'maximum delay_mean_corrested is', max(df['dmc']))
+# print(df)
+# print('variance after', df.dmc.var())
+# print('variance before', df['delay_mean'].var())
+# print('minimum delay_mean is: ', min(
+#     df['delay_mean']), 'maximum delay_mean is', max(df['delay_mean']))
+# print('minimum delay_mean_corrected is: ', min(
+#     df['dmc']), 'maximum delay_mean_corrested is', max(df['dmc']))
 
-fig, ax = plt.subplots()
-delay_hist_corr = plt.hist(
-    df.dmc, bins=60, range=(min(df['dmc']), max(df['dmc'])))
-ax.set_yscale('log')
-print(df.shape)
-df.dmc.describe()
-variance_corr = df.loc[:, 'dmc'].var()
-print(variance_corr)
+# fig, ax = plt.subplots()
+# delay_hist_corr = plt.hist(
+#     df.dmc, bins=60, range=(min(df['dmc']), max(df['dmc'])))
+# ax.set_yscale('log')
+# print(df.shape)
+# df.dmc.describe()
+# variance_corr = df.loc[:, 'dmc'].var()
+# print(variance_corr)
 
-bins = np.linspace(min(df['delay_mean']), max(df['delay_mean']))
-fig, ax = plt.subplots(figsize=(10, 10))
-ax.set_yscale('log')
-plt.hist(df.delay_mean, bins=bins, histtype='step', label='messed up')
-plt.hist(df.dmc, bins=bins, histtype='step', label='corrected')
-plt.legend(loc='upper right')
-plt.show()
+# bins = np.linspace(min(df['delay_mean']), max(df['delay_mean']))
+# fig, ax = plt.subplots(figsize=(10, 10))
+# ax.set_yscale('log')
+# plt.hist(df.delay_mean, bins=bins, histtype='step', label='messed up')
+# plt.hist(df.dmc, bins=bins, histtype='step', label='corrected')
+# plt.legend(loc='upper right')
+# plt.show()
 
 # removing one-sided nodes after the corrections are applied
 for node in one_sided_nodes:
     df = df[(df.src_host != node) & (df.dest_host != node)]
-print('remaining rows:', df.shape[0])
+# print('remaining rows:', df.shape[0])
 
-bins = np.linspace(min(df['delay_mean']), max(df['delay_mean']))
-fig, ax = plt.subplots(figsize=(10, 10))
-ax.set_yscale('log')
-plt.hist(df.delay_mean, bins=bins, histtype='step', label='messed up')
-plt.hist(df.dmc, bins=bins, histtype='step', label='corrected')
-plt.legend(loc='upper right')
-plt.show()
-print(min(df['delay_mean']), max(df['delay_mean']))
-print(min(df['dmc']), max(df['dmc']))
+# bins = np.linspace(min(df['delay_mean']), max(df['delay_mean']))
+# fig, ax = plt.subplots(figsize=(10, 10))
+# ax.set_yscale('log')
+# plt.hist(df.delay_mean, bins=bins, histtype='step', label='messed up')
+# plt.hist(df.dmc, bins=bins, histtype='step', label='corrected')
+# plt.legend(loc='upper right')
+# plt.show()
+# print(min(df['delay_mean']), max(df['delay_mean']))
+# print(min(df['dmc']), max(df['dmc']))
