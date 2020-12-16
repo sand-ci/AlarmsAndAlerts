@@ -160,10 +160,9 @@ df_hosts.correction.isna().sum()
 
 df_corr = df_hosts[abs(df_hosts['correction']) > 100]
 
-if len(list_of_hosts_with_bad_measurements):
-    ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
-    for bh in list_of_hosts_with_bad_measurements:
-        ALARM.addAlarm(body='bh')
+ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
+for (node, correction) in df_corr.values:
+    ALARM.addAlarm(body=node+" "+str(correction))
 
 print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
 plt.hist(df_hosts.correction, range=(
