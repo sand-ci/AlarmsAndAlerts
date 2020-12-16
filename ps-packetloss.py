@@ -16,12 +16,12 @@ pls = PrtoblematicPairsDataLoader('ps_packetloss')
 cols = ['src', 'dest', 'src_host', 'dest_host',
         'src_site', 'dest_site', 'avg_value', 'tests_done']
 
-sign_ploss = pls.df[(pls.df['flag']==1)][cols].to_dict(orient='records')
-ALARM = alarms('network', 'perfsonar', 'high packet loss')
+sign_ploss = pls.df[(pls.df['flag'] == 1)][cols].to_dict(orient='records')
+ALARM = alarms('Networking', 'Perfsonar', 'high packet loss')
 for item in sign_ploss:
     ALARM.addAlarm(body='', tags=[], source=item)
 
-complete_ploss = pls.df[(pls.df['flag']==2)][cols].to_dict(orient='records')
-ALARM = alarms('network', 'perfsonar', 'complete packet loss')
+complete_ploss = pls.df[(pls.df['flag'] == 2)][cols].to_dict(orient='records')
+ALARM = alarms('Networking', 'Perfsonar', 'complete packet loss')
 for item in complete_ploss:
     ALARM.addAlarm(body='', tags=[], source=item)
