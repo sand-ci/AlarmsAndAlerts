@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import json
+from alarms import alarms
 
 # ### loading the data (owd, src/dest pair of nodes) in the last 24 h
 
@@ -13,10 +15,14 @@ tstart = tend - timedelta(days=1)
 start = pd.Timestamp(tstart)
 end = pd.Timestamp(tend)
 
+with open('/config/config.json') as json_data:
+    config = json.load(json_data,)
+
 es = Elasticsearch(
-    [{'host': 'atlas-kibana.mwt2.org', 'port': 9200}],
-    http_auth=(), use_ssl=True
-)
+    hosts=[{'host': config['ES_HOST'], 'scheme':'https'}],
+    http_auth=(config['ES_USER'], config['ES_PASS']),
+    timeout=60)
+
 es.ping()
 
 my_query = {
@@ -88,6 +94,10 @@ while not bad_hosts_df.empty:
 print("List of hosts with bad measurements:",
       list_of_hosts_with_bad_measurements)
 
+if len(list_of_hosts_with_bad_measurements):
+    ALARM = alarms('Networking', 'Perfsonar', 'bad owd measurements')
+    for bh in list_of_hosts_with_bad_measurements:
+        ALARM.addAlarm(body=bh)
 
 # ### removing hosts with too high measurements
 
@@ -146,13 +156,14 @@ print(df_hosts)
 df_hosts.correction.isna().sum()
 
 
-# ### finding the nodes with corrections of a specified value
+# Creating alarms when correction required is larger than 100 ms.
 
 df_corr = df_hosts[abs(df_hosts['correction']) > 100]
-print(df_corr.head(5))
 
-
-# ## Alarm goes here
+if len(list_of_hosts_with_bad_measurements):
+    ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
+    for bh in list_of_hosts_with_bad_measurements:
+        ALARM.addAlarm(body='bh')
 
 print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
 plt.hist(df_hosts.correction, range=(

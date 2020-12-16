@@ -1,0 +1,32 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: ps-clock-corrections
+  namespace: aaas
+spec:
+  schedule: "5 0 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: aaas-container
+              image: sandci/alarms_and_alerts:latest
+              command: ["/ps-clock-corrections.sh"]
+              # env:
+              # - name: MAILGUN_API_KEY
+              #   valueFrom:
+              #     secretKeyRef:
+              #       name: mailgun-secret
+              #       key: api-key
+              volumeMounts:
+                - name: config-volume
+                  mountPath: "/config"
+                  readOnly: true
+          volumes:
+            - name: config-volume
+              secret:
+                secretName: config
+          restartPolicy: Never
