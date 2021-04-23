@@ -8,7 +8,7 @@ import json
 import sys
 from elasticsearch import Elasticsearch, exceptions as es_exceptions
 from datetime import datetime, timedelta
-from alerts import alarms
+from alarms import alarms
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
