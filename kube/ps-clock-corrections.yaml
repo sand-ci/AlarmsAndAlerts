@@ -15,12 +15,6 @@ spec:
             - name: aaas-container
               image: sandci/alarms_and_alerts:latest
               command: ["/ps-clock-corrections.sh"]
-              # env:
-              # - name: MAILGUN_API_KEY
-              #   valueFrom:
-              #     secretKeyRef:
-              #       name: mailgun-secret
-              #       key: api-key
               volumeMounts:
                 - name: config-volume
                   mountPath: "/config"

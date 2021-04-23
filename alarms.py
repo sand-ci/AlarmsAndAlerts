@@ -1,5 +1,4 @@
 import requests
-import json
 host = 'https://aaas.atlas-ml.org/alarm/'
 
 
@@ -14,12 +13,16 @@ class alarms:
             "category": self.category,
             "subcategory": self.subcategory,
             "event": self.event,
-            "body": body,
-            "tags": tags,
-            "level": level,
-            "source": source,
-            "details": details
+            "body": body
         }
+        if tags:
+            js['tags'] = tags
+        if level:
+            js['level'] = level
+        if source:
+            js['source'] = source
+        if details:
+            js['details'] = details
         res = requests.post(host, json=js)
         print(res)
         print(res.status_code)

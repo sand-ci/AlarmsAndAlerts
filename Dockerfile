@@ -7,8 +7,7 @@ RUN pip3.8 install ipwhois
 
 COPY . .
 
-# RUN mkdir Images
-# RUN mkdir Users/Images
+RUN mkdir -p Users/Images
 # build info
 RUN echo "Timestamp:" `date --utc` | tee /image-build-info.txt
 

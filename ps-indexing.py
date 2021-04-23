@@ -1,14 +1,14 @@
-# Checks if Perfsonar data is indexed
+# # Checks if Perfsonar data is indexed
 #
-# Checks number of indexed documents in all perfsonar indices and alerts if any of them is significantly less then usual.
-# It sends mails to all the people substribed to that alert. It is run every 30 min from a cron job.
+# Checks number of indexed documents in all perfsonar indices and alerts if any of them is
+# significantly less then usual. It sends mails to all the people substribed to that alert.
+# It is run every 30 min from a cron job.
 
 import json
+import sys
 from elasticsearch import Elasticsearch, exceptions as es_exceptions
 from datetime import datetime, timedelta
-# import alerts
-# from subscribers import subscribers
-from alarms import alarms
+from alerts import alarms
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
@@ -24,8 +24,16 @@ es = Elasticsearch(
     hosts=[{'host': config['ES_HOST'], 'scheme':'https'}],
     http_auth=(config['ES_USER'], config['ES_PASS']),
     timeout=60)
+
+if es.ping():
+    print('connected to ES.')
+else:
+    print('no connection to ES.')
+    sys.exit(1)
+
 # ### define what are the indices to look for
-# first number is interval to check (in hours), second is number in 2 previous intervals, third is number in current interval.
+# first number is interval to check (in hours), second is number in 2 previous intervals,
+# third is number in current interval.
 
 ps_indices = {
     'ps_meta': [24, 0, 0],
@@ -38,7 +46,8 @@ ps_indices = {
 }
 
 # There is a time offset here - we do now-9 instead of expected now-1.
-# two reasons: 1. we get data with a delay 2. there is an issue with timezones even data is indexed in UTC.
+# two reasons: 1. we get data with a delay
+# 2. there is an issue with timezones even data is indexed in UTC.
 
 sub_end = (datetime.utcnow() - timedelta(hours=9)
            ).replace(microsecond=0, second=0, minute=0)
@@ -96,31 +105,5 @@ problematic = df[df['problem'] == True]
 print(problematic.head(10))
 
 if problematic.shape[0] > 0:
-
     ALARM = alarms('Networking', 'Perfsonar', 'indexing')
-    ALARM.addAlarm(body='', tags='UC')
-
-    # S = subscribers()
-    # A = alerts.alerts()
-    # test_name = 'Alert on Elastic indexing rate [PerfSonar]'
-    # users = S.get_immediate_subscribers(test_name)
-    # for user in users:
-    #     body = 'Dear ' + user.name + ',\n\n'
-    #     body += '\tthis mail is to let you know that there is an issue in indexing Perfsonar data in UC Elasticsearch.\n'
-    #     A.send_GUN_HTML_mail(
-    #         'Networking alert',
-    #         user.email,
-    #         body,
-    #         subtitle=test_name,
-    #         images=[
-    #             {
-    #                 "Title": 'Current vs Referent time',
-    #                 "Description": "This plot shows number of documents indexed in two intervals. The Current interval is 1h long except for meta data (24h). Referent interval is just before current interval but is twice longer.",
-    #                 "Filename": "Images/Check_perfsonar_indexing.png",
-    #                 "Link": "https://atlas-kibana.mwt2.org/s/networking/app/kibana#/visualize/edit/58bf3e80-18d1-11e8-8f2f-ab6704660c79?_g=(refreshInterval%3A(pause%3A!t%2Cvalue%3A0)%2Ctime%3A(from%3Anow-7d%2Cmode%3Aquick%2Cto%3Anow))"
-    #             }
-    #         ]
-    #     )
-
-    #     print(user.to_string())
-    #     # A.addAlert(test_name, user.name, 'just an issue.')
+    ALARM.addAlarm(body='Issue with indexing PS data at UC', tags='UC')
