@@ -106,4 +106,4 @@ print(problematic.head(10))
 
 if problematic.shape[0] > 0:
     ALARM = alarms('Networking', 'Perfsonar', 'indexing')
-    ALARM.addAlarm(body='Issue with indexing PS data at UC', tags='UC')
+    ALARM.addAlarm(body='Issue with indexing PS data at UC', tags=['UC'])

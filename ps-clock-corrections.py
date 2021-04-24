@@ -1,10 +1,10 @@
-from elasticsearch import Elasticsearch, exceptions as es_exceptions, helpers
-from collections import Counter
+from elasticsearch import Elasticsearch, helpers
+# from collections import Counter
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-import time
-import matplotlib.pyplot as plt
+# import time
+# import matplotlib.pyplot as plt
 import json
 from alarms import alarms
 
@@ -82,7 +82,7 @@ while not bad_hosts_df.empty:
     # get list of hosts with most bad measurements
     sh = bad_hosts_df.src_host.value_counts()
     dh = bad_hosts_df.dest_host.value_counts()
-    #sum = lambda sh, dh: np.nansum(sh + dh)
+    # sum = lambda sh, dh: np.nansum(sh + dh)
     sum = sh.add(dh, fill_value=0).sort_values(ascending=False)
     host_to_remove = sum.index[0]
 #    print(host_to_remove)
@@ -97,13 +97,13 @@ while not bad_hosts_df.empty:
 if len(list_of_hosts_with_bad_measurements):
     ALARM = alarms('Networking', 'Perfsonar', 'bad owd measurements')
     for bh in list_of_hosts_with_bad_measurements:
-        ALARM.addAlarm(body=bh)
+        ALARM.addAlarm(body=bh, tags=[bh])
 
 # ### removing hosts with too high measurements
 
 for node in list_of_hosts_with_bad_measurements:
     df = df[(df.src_host != node) & (df.dest_host != node)]
-#print('remaining rows:', df.shape[0])
+# print('remaining rows:', df.shape[0])
 
 
 # ### removing one sided nodes and getting the final dataframe to work with
@@ -114,13 +114,13 @@ ds_nodes = np.unique(df['dest_host'].values)
 
 one_sided_nodes = list(set(sc_nodes).symmetric_difference(ds_nodes))
 
-#print('one sided nodes: ', one_sided_nodes)
+# print('one sided nodes: ', one_sided_nodes)
 
 # removes one sided nodes from all nodes
 correctable_nodes = np.setdiff1d(all_nodes, one_sided_nodes)
 
-#print('one sided nodes', len(one_sided_nodes))
-#print('correctable nodes ', len(correctable_nodes))
+# print('one sided nodes', len(one_sided_nodes))
+# print('correctable nodes ', len(correctable_nodes))
 
 for node in one_sided_nodes:
     df = df[(df.src_host != node) & (df.dest_host != node)]
@@ -162,7 +162,11 @@ df_corr = df_hosts[abs(df_hosts['correction']) > 100]
 
 ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
 for (node, correction) in df_corr.values:
-    ALARM.addAlarm(body=node+" "+str(correction))
+    ALARM.addAlarm(
+        body=node+" "+str(correction),
+        tags=[node],
+        source={"node": node, "correction": correction}
+    )
 
 # print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
 # plt.hist(df_hosts.correction, range=(

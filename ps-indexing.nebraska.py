@@ -5,7 +5,7 @@
 # It is run every 30 min from a cron job.
 
 import sys
-from elasticsearch import Elasticsearch, exceptions as es_exceptions
+from elasticsearch import Elasticsearch
 from datetime import datetime, timedelta
 from alarms import alarms
 import pandas as pd
@@ -101,7 +101,7 @@ print(problematic.head(10))
 
 if problematic.shape[0] > 0:
     ALARM = alarms('Networking', 'Perfsonar', 'indexing')
-    ALARM.addAlarm(body='Issue with indexing PS data at Nebraska', tags='Nebraska')
+    ALARM.addAlarm(body='Issue with indexing PS data at Nebraska', tags=['Nebraska'])
 
 
 #     S = subscribers()
@@ -110,7 +110,8 @@ if problematic.shape[0] > 0:
 #     users = S.get_immediate_subscribers(test_name)
 #     for user in users:
 #         body = 'Dear ' + user.name + ',\n\n'
-#         body += '\tthis mail is to let you know that there is an issue in indexing Perfsonar data in Nebraska Elasticsearch.\n'
+#         body += '\tthis mail is to let you know that there is an issue in indexing
+#  Perfsonar data in Nebraska Elasticsearch.\n'
 #         A.send_GUN_HTML_mail(
 #             'Networking alert',
 #             user.email,
