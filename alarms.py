@@ -24,5 +24,5 @@ class alarms:
         if details:
             js['details'] = details
         res = requests.post(host, json=js)
-        print(res)
+        print(res.text)
         print(res.status_code)
