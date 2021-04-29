@@ -74,6 +74,7 @@ class PrtoblematicPairsDataLoader(object):
 
         df = df.append(grouped, ignore_index=True)
         df.rename(columns={'value': 'avg_value'}, inplace=True)
+        df = df.round({'avg_value': 3})
 
         print(f'Total number of hashes: {len(df)}')
 
