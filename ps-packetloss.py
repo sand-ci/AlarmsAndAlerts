@@ -63,5 +63,4 @@ blocked = complete_ploss[(~complete_ploss['dest_host'].isin(destWhereCntGrTh5hos
                & (~complete_ploss['src_host'].isin(srcWhereCntGrTh5hosts))][cols].to_dict(orient='records')
 ALARM = alarms('Networking', 'Perfsonar', 'complete packet loss')
 for item in blocked:
-    print(item)
     ALARM.addAlarm(body='Link shows complete packet loss', tags=[item['src_site'], item['dest_site']], source=item)
