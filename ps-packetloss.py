@@ -42,7 +42,7 @@ if len(destWhereCntGrTh5hosts)>0:
         site = complete_ploss[complete_ploss['dest_host']==host]['dest_site'].unique()[0]
         site_list = complete_ploss[complete_ploss['dest_host']==host]['src_site'].values.tolist()
         data = {"site":site, "host":host, "sites":site_list}
-        ALARM.addAlarm(body='Firewall issue', tags=site, source=data)
+        ALARM.addAlarm(body='Firewall issue', tags=[site], source=data)
 
 
 
@@ -55,7 +55,7 @@ if len(srcWhereCntGrTh5hosts)>0:
         site = complete_ploss[complete_ploss['src_host']==host]['src_site'].unique()[0]
         site_list = complete_ploss[complete_ploss['src_host']==host]['dest_site'].values.tolist()
         data = {"site":site, "host":host, "sites":site_list}
-        ALARM.addAlarm(body='Firewall issue', tags=site, source=data)
+        ALARM.addAlarm(body='Firewall issue', tags=[site], source=data)
 
 
 # Send the reamaining pairs under 'complete packet loss' event type
