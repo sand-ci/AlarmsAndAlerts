@@ -81,10 +81,11 @@ df = pd.DataFrame(ps_indices)
 df = df[1:].transpose()
 df.columns = ["referent", "current"]
 df.referent = df.referent / 2
-df.plot(kind="bar")
-fig = matplotlib.pyplot.gcf()
-fig.set_size_inches(6, 6)
-plt.tight_layout()
+
+# df.plot(kind="bar")
+# fig = matplotlib.pyplot.gcf()
+# fig.set_size_inches(6, 6)
+# plt.tight_layout()
 # plt.savefig('Images/Check_perfsonar_indexing.Nebraska.png')
 
 
