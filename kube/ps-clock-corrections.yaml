@@ -15,6 +15,7 @@ spec:
             - name: aaas-container
               image: sandci/alarms_and_alerts:latest
               command: ["/ps-clock-corrections.sh"]
+              imagePullPolicy: IfNotPresent
               volumeMounts:
                 - name: config-volume
                   mountPath: "/config"

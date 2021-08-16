@@ -14,6 +14,7 @@ spec:
           containers:
             - name: aaas-container
               image: sandci/alarms_and_alerts:latest
+              imagePullPolicy: IfNotPresent
               command: ["/ps-packetloss.sh"]
               volumeMounts:
                 - name: config-volume
