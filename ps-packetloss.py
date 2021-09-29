@@ -47,7 +47,7 @@ for key, item in data.items():
 
     # If the host shows problems in one direction or both to more than 5 other sites, send an alarm with lists of sites
     if cnt>=5:
-        alarmOnList.addAlarm(body=f'Site {item['site']} shows high packet loss to/from multiple sites', tags=[item['site']], source=item)
+        alarmOnList.addAlarm(body=f'Site {item["site"]} shows high packet loss to/from multiple sites', tags=[item['site']], source=item)
     else:
     # Otherwise send a standard alarm including more fields
         for src in data[key]['src_sites']:
