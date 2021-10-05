@@ -43,7 +43,8 @@ def queryData(idx, dateFrom, dateTo):
 
 
 def getStats(df, threshold):
-    metaDf = fixMissingMetadata(df, 'ps_throughput')
+#     metaDf = fixMissingMetadata(df, 'ps_throughput')
+    metaDf = df.copy()
     # convert to MB
     metaDf['value'] = round(metaDf['value']*1e-6)
     
@@ -82,7 +83,7 @@ def createMsg(vals, alarmType):
         msg = f"Bandwidth decreased for site {vals['site']} to sites: {vals['dest_sites']} change: {[f'{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, dropped by {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day-average."
 
     elif alarmType == 'Bandwidth increased':
-        msg = f"Bandwidth increased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, increased by {vals['%change']}% with respect to the 21-day average."
+        msg = f"Bandwidth increased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, increased by +{vals['%change']}% with respect to the 21-day average."
 
     elif alarmType == 'Bandwidth increased from/to multiple sites':
         msg = f"Bandwidth increased for site {vals['site']} to sites: {[f'{v}%' for v in vals['dest_change']]} change: {[f'+{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, increased by {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day average."

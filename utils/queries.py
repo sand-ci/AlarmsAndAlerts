@@ -104,6 +104,7 @@ def query4Avg(idx, dateFrom, dateTo):
     aggdata = hp.es.search(index=idx, body=query)
     for item in aggdata['aggregations']['groupby']['buckets']:
         aggrs.append({'hash': str(item['key']['src']+'-'+item['key']['dest']),
+                      'from':dateFrom, 'to':dateTo,
                       'src': item['key']['src'], 'dest': item['key']['dest'],
                       'src_host': item['key']['src_host'], 'dest_host': item['key']['dest_host'],
                       'src_site': item['key']['src_site'], 'dest_site': item['key']['dest_site'],
