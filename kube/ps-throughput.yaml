@@ -4,7 +4,7 @@ metadata:
   name: ps-throughput
   namespace: aaas
 spec:
-  schedule: "00 4 * * *"
+  schedule: "8 4 * * *"
   suspend: false
   concurrencyPolicy: Forbid
   jobTemplate:
