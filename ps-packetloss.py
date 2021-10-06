@@ -20,6 +20,8 @@ cols = ['src', 'dest', 'src_host', 'dest_host',
 ##### High packet loss #####
 
 sign_ploss = pls.df[(pls.df['flag'] == 1)][cols]
+# convert to %
+sign_ploss['avg_value'] = sign_ploss['avg_value'].apply(lambda x: str(round((x)*100))+'%')
 
 
 # Loop over all src/dest_hosts and grab the sites they show problems with
