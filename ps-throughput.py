@@ -97,6 +97,10 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
     src_cnt = alarmsDf[['src_site']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
     dest_cnt = alarmsDf[['dest_site']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
     cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site']).sum().reset_index()
+
+    # create the alarm objects
+    alarmOnPair = alarms('Networking', 'Perfsonar', alarmType)
+    alarmOnMulty = alarms('Networking', 'Perfsonar', f'{alarmType} from/to multiple sites')
     
     for site in cntDf[cntDf['cnt']>=minCount]['site'].values:
 
