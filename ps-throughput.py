@@ -43,7 +43,8 @@ def queryData(idx, dateFrom, dateTo):
 
 
 def getStats(df, threshold):
-    metaDf = fixMissingMetadata(df, 'ps_throughput')
+#     metaDf = fixMissingMetadata(df, 'ps_throughput')
+    metaDf = df.copy()
     # convert to MB
     metaDf['value'] = round(metaDf['value']*1e-6)
     
@@ -57,13 +58,13 @@ def getStats(df, threshold):
 
     sitesDf = pd.merge(sitesDf, stdDf, left_on=['src_site','dest_site'], right_on=['src_site','dest_site'], how='left')
 
-    #     get the % change with respect to the average for the period
+    # get the % change with respect to the average for the period
     sitesDf['%change'] = round(((sitesDf['value'] - sitesDf['mean'])/sitesDf['mean'])*100)
 
     # grap the last 3 days period
     last3days = pd.to_datetime(max(sitesDf.dt.unique())).strftime("%Y-%m-%d")
 
-    #     return only sites having significant drop in values in the most recent period
+    # return only sites having significant drop in values in the most recent period
     return sitesDf[((sitesDf['z']<=-threshold)|(sitesDf['z']>=threshold))&(sitesDf['dt']==last3days)].rename(columns={'value':'last3days_avg'}).round(2)
 
 
@@ -79,14 +80,13 @@ def createMsg(vals, alarmType):
         msg = f"Bandwidth decreased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, dropped by {vals['%change']}% with respect to the 21-day-average."
 
     elif alarmType == 'Bandwidth decreased from/to multiple sites': 
-        msg = f"Bandwidth decreased for site {vals['site']} to sites: {vals['dest_sites']} change: {[f'{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, dropped by {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day-average."
+        msg = f"Bandwidth decreased for site {vals['site']} to sites: {vals['dest_sites']}, change: {[f'{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, change: {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day-average."
 
     elif alarmType == 'Bandwidth increased':
-        msg = f"Bandwidth increased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, increased by {vals['%change']}% with respect to the 21-day average."
+        msg = f"Bandwidth increased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, increased by +{vals['%change']}% with respect to the 21-day average."
 
     elif alarmType == 'Bandwidth increased from/to multiple sites':
-        msg = f"Bandwidth increased for site {vals['site']} to sites: {[f'{v}%' for v in vals['dest_change']]} change: {[f'+{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, increased by {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day average."
-
+        msg = f"Bandwidth increased for site {vals['site']} to sites: {vals['dest_sites']}, change: {[f'+{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, change: {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day average."
     return msg
 
 
@@ -96,7 +96,13 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
     src_cnt = alarmsDf[['src_site']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
     dest_cnt = alarmsDf[['dest_site']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
     cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site']).sum().reset_index()
-    
+
+    # create the alarm objects
+    alarmOnPair = alarms('Networking', 'Perfsonar', alarmType)
+    alarmOnMulty = alarms('Networking', 'Perfsonar', f'{alarmType} from/to multiple sites')
+
+    rows2Delete = []
+
     for site in cntDf[cntDf['cnt']>=minCount]['site'].values:
 
         subset = alarmsDf[(alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site)]
@@ -115,16 +121,16 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
         doc = {'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
         doc['site'] = site
 
-        # send the alarm and the correct message
-        alarmOnMulty.addAlarm(body=createMsg(doc, f'{alarmType} from/to multiple sites'), tags=[site], source=doc)
+        # send the alarm with the proper message
+        alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
+        rows2Delete.extend(subset.index.values)
 
-        # delete the rows for which alarms were created
-        alarmsDf = alarmsDf.drop(subset.index.values)
-
+    # delete the rows for which alarms were created
+    alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'last3days_avg', '%change']].to_dict('records'):
-        alarmOnPair.addAlarm(body=createMsg(doc, alarmType), tags=[doc['src_site'], doc['dest_site']], source=doc)
+        alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 
 now = datetime.utcnow()
