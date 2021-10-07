@@ -122,7 +122,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
         doc['site'] = site
 
         # send the alarm with the proper message
-        alarmOnMulty.addAlarm(body=createMsg(doc, f'{alarmType} from/to multiple sites'), tags=[site], source=doc)
+        alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
         rows2Delete.extend(subset.index.values)
 
     # delete the rows for which alarms were created
@@ -130,7 +130,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
 
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'last3days_avg', '%change']].to_dict('records'):
-        alarmOnPair.addAlarm(body=createMsg(doc, alarmType), tags=[doc['src_site'], doc['dest_site']], source=doc)
+        alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 
 now = datetime.utcnow()
