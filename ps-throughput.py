@@ -68,28 +68,6 @@ def getStats(df, threshold):
     return sitesDf[((sitesDf['z']<=-threshold)|(sitesDf['z']>=threshold))&(sitesDf['dt']==last3days)].rename(columns={'value':'last3days_avg'}).round(2)
 
 
-def createMsg(vals, alarmType):
-    msg = ''
-    if alarmType =='Throughput failed':
-        msg = f"Throughput measures failed between sites {vals['src_site']} and {vals['dest_site']}."
-
-    elif alarmType == 'Throughput failed from/to multiple sites':
-        msg = f"Throughput measures failed for {vals['site']} to sites: {vals['dest_sites']} and from sites: {vals['src_sites']}."
-
-    elif alarmType == 'Bandwidth decreased':
-        msg = f"Bandwidth decreased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, dropped by {vals['%change']}% with respect to the 21-day-average."
-
-    elif alarmType == 'Bandwidth decreased from/to multiple sites': 
-        msg = f"Bandwidth decreased for site {vals['site']} to sites: {vals['dest_sites']}, change: {[f'{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, change: {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day-average."
-
-    elif alarmType == 'Bandwidth increased':
-        msg = f"Bandwidth increased between sites {vals['src_site']} and {vals['dest_site']}. Current throughput is {vals['last3days_avg']} MB, increased by +{vals['%change']}% with respect to the 21-day average."
-
-    elif alarmType == 'Bandwidth increased from/to multiple sites':
-        msg = f"Bandwidth increased for site {vals['site']} to sites: {vals['dest_sites']}, change: {[f'+{v}%' for v in vals['dest_change']]}; and from sites: {vals['src_sites']}, change: {[f'{v}%' for v in vals['src_change']]} with respect to the 21-day average."
-    return msg
-
-
 def createAlarms(alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
@@ -144,9 +122,6 @@ rowDf['dt'] = pd.to_datetime(rowDf['from'], unit='ms')
 # calculate the statistics
 statsDf = getStats(rowDf, 1.9)
 
-
-# Throughput measures failure
-createAlarms(statsDf[statsDf['last3days_avg']==0], 'Throughput measures failure')
 # Bandwidth decreased
 createAlarms(statsDf[(statsDf['z']<=-1.9)], 'Bandwidth decreased')
 # Bandwidth recovery
