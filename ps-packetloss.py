@@ -20,22 +20,27 @@ cols = ['src', 'dest', 'src_host', 'dest_host',
 ##### High packet loss #####
 
 sign_ploss = pls.df[(pls.df['flag'] == 1)][cols]
-
+sign_ploss['avg_value%'] = round(sign_ploss['avg_value']*100,1)
 
 # Loop over all src/dest_hosts and grab the sites they show problems with
 data = {}
 for host in list(set(sign_ploss['src_host'].to_list())):
     site = sign_ploss[(sign_ploss['src_host']==host)]['src_site'].values[0]
     dest_sites = sign_ploss[sign_ploss['src_host']==host]['dest_site'].values.tolist()
-    data[host] = {"site":site, "host":host, "dest_sites":dest_sites, "src_sites":[]}
+    loss = sign_ploss[sign_ploss['src_host']==host]['avg_value%'].values.tolist()
+    data[host] = {"site":site, "host":host, "dest_sites":dest_sites, "dest_loss":loss, "src_sites":[], "src_loss":[]}
 
 for host in list(set(sign_ploss['dest_host'].to_list())):
     site = sign_ploss[(sign_ploss['dest_host']==host)]['dest_site'].values[0]
     src_sites = sign_ploss[sign_ploss['dest_host']==host]['src_site'].values.tolist()
+    loss = sign_ploss[sign_ploss['dest_host']==host]['avg_value%'].values.tolist()
+
     if host in data.keys():
         data[host]["src_sites"] = src_sites
+        data[host]["src_loss"] = loss
     else: 
-        data[host] = {"site":site, "host":host, "dest_sites":[], "src_sites":src_sites}
+        data[host] = {"site":site, "host":host, "dest_sites":[], "dest_loss":[], "src_sites":src_sites, "src_loss":loss}
+
 
 # Create the alarm types
 alarmOnList = alarms('Networking', 'Perfsonar', 'high packet loss on multiple links')
