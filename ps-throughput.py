@@ -108,6 +108,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
 
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'last3days_avg', '%change']].to_dict('records'):
+        doc['%change'] = doc['%change']/100 #if the value is between 0 and 1, it will be displayed as % in the mail message
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 
@@ -123,6 +124,6 @@ rowDf['dt'] = pd.to_datetime(rowDf['from'], unit='ms')
 statsDf = getStats(rowDf, 1.9)
 
 # Bandwidth decreased
-createAlarms(statsDf[(statsDf['z']<=-1.9)], 'Bandwidth decreased')
+createAlarms(statsDf[(statsDf['z']<=-1.9)&(statsDf['%change']!=100)], 'Bandwidth decreased')
 # Bandwidth recovery
 createAlarms(statsDf[(statsDf['z']>=1.9)], 'Bandwidth increased')
