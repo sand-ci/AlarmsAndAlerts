@@ -2,7 +2,7 @@
 {
     "category": "Networking",
     "subcategory": "Perfsonar",
-    "event": "source can't reach any",
+    "event": "source cannot reach any",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot reach any destination (destination_reched=False to all tested hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot reach any destination out of %{num_hosts_other_end} hosts"
 }
@@ -10,7 +10,7 @@
 {
     "category": "Networking",
     "subcategory": "Perfsonar",
-    "event": "destination can't be reached from any",
+    "event": "destination cannot be reached from any",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by any source (destination_reched=False from all hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot be reached by any source out of %{num_hosts_other_end} hosts"
 }
@@ -18,7 +18,7 @@
 {
     "category": "Networking",
     "subcategory": "Perfsonar",
-    "event": "destination can't be reached from multiple",
+    "event": "destination cannot be reached from multiple",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by >20 sources (destination_reched=False from >20 hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot be reached from c{cannotBeReachedFrom} out of %{totalNumSites} source sites: %{cannotBeReachedFrom}"
 }
@@ -191,20 +191,20 @@ df = pd.merge(metaDf[['ip', 'site', 'host']], df, left_on='ip', right_on='dest',
 df = df[~(df['src'].isnull())&(df['src']!='')&~(df['dest'].isnull())&(df['dest']!='')]
 
 #create the alarm types
-alarmDestHostsCantBeReachedFromAny = alarms("Networking", "Perfsonar", "destination can't be reached from any")
-alarmSrcHostsCantReachAny = alarms('Networking', 'Perfsonar', "source can't reach any")
-alarmDestCantBeReachedFromMulty = alarms('Networking', 'Perfsonar', "destination can't be reached from multiple")
+alarmDestHostsCantBeReachedFromAny = alarms("Networking", "Perfsonar", "destination cannot be reached from any")
+alarmSrcHostsCantReachAny = alarms('Networking', 'Perfsonar', "source cannot reach any")
+alarmDestCantBeReachedFromMulty = alarms('Networking', 'Perfsonar', "destination cannot be reached from multiple")
 
 # send alarms
 DestHostsCantBeReachedFromAny =  findAllDestinationsNeverReached(start='dest', 
                                                                  df=df,
                                                                  alarm=alarmDestHostsCantBeReachedFromAny,
-                                                                 alarmType="destination can't be reached from any")
+                                                                 alarmType="destination cannot be reached from any")
 
 SrcHostsCantReachAny = findAllDestinationsNeverReached(start='src',
                                                        df=df,
                                                        alarm=alarmSrcHostsCantReachAny,
-                                                       alarmType="source can't reach any")
+                                                       alarmType="source cannot reach any")
 
 issuesWithMultipleSites(start='dest',
                         threshold=20, 
@@ -212,5 +212,5 @@ issuesWithMultipleSites(start='dest',
                         df=df,
                         metaDf=metaDf,
                         alarm=alarmDestCantBeReachedFromMulty,
-                        alarmType="destination can't be reached from multiple")
+                        alarmType="destination cannot be reached from multiple")
 # issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
