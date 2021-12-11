@@ -4,7 +4,7 @@ metadata:
   name: ps-trace
   namespace: aaas
 spec:
-  schedule: "8 5 * * *"
+  schedule: "8 5 */15 * *"
   suspend: false
   concurrencyPolicy: Forbid
   jobTemplate:
