@@ -1,4 +1,4 @@
-FROM ivukotic/ml_platform_auto:latest
+FROM ivukotic/ml_platform:latest
 
 LABEL maintainer Ilija Vukotic <ivukotic@cern.ch>
 
