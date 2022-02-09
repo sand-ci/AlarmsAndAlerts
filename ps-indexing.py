@@ -71,8 +71,7 @@ for ind in ps_indices:
     }
 
     res = es.count(index=ind, body=types_query)
-    if res['count'] == 0:
-        print('referent interval query:', types_query)
+    print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][1] = res['count']
 
     types_query = {
@@ -82,8 +81,7 @@ for ind in ps_indices:
     }
 
     res = es.count(index=ind, body=types_query)
-    if res['count'] == 0:
-        print('current interval query:', types_query)
+    print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][2] = res['count']
 
 
