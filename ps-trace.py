@@ -220,10 +220,9 @@ alarmDestCantBeReachedFromMulty = alarms(
     'Networking', 'Perfsonar', "destination cannot be reached from multiple")
 
 # send alarms
-DestHostsCantBeReachedFromAny = findAllDestinationsNeverReached(start='dest',
-                                                                 df=df,
-                                                                 alarm=alarmDestHostsCantBeReachedFromAny,
-                                                                 alarmType="destination cannot be reached from any")
+DestHostsCantBeReachedFromAny = findAllDestinationsNeverReached(start='dest', df=df,
+                                                                alarm=alarmDestHostsCantBeReachedFromAny,
+                                                                alarmType="destination cannot be reached from any")
 
 
 SrcHostsCantReachAny = findAllDestinationsNeverReached(start='src',
@@ -237,10 +236,5 @@ issuesWithMultipleSites(start='dest',
                         df=df,
                         metaDf=metaDf,
                         alarm=alarmDestCantBeReachedFromMulty,
-<< << << < HEAD
-                        alarmType="destination can't be reached from multiple")
+                        alarmType="destination cannot be reached from multiple")
 # issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
-== == == =
-                        alarmType = "destination cannot be reached from multiple")
-# issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
->> >>>> > 37b783cbb22bb7d01532e3e1427fd18098717095
