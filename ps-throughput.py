@@ -164,7 +164,7 @@ def getStats(df, threshold):
     metaDf['value'] = round(metaDf['value']*1e-6)
     
     # split the data in 3 days
-    sitesDf = metaDf.groupby(['src_site', 'dest_site','ipv6', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
+    sitesDf = metaDf.groupby(['src_site', 'dest_site','ipv', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
     
     # get the statistics
     sitesDf['z'] = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: round((x - x.mean())/x.std(),2))
@@ -186,9 +186,9 @@ def getStats(df, threshold):
 def createAlarms(alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
-    src_cnt = alarmsDf[['src_site','ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
-    dest_cnt = alarmsDf[['dest_site','ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
-    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv6']).sum().reset_index()
+    src_cnt = alarmsDf[['src_site','ipv']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
+    dest_cnt = alarmsDf[['dest_site','ipv']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
+    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv']).sum().reset_index()
 
     # create the alarm objects
     alarmOnPair = alarms('Networking', 'Perfsonar', alarmType)
@@ -196,10 +196,11 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
 
     rows2Delete = []
 
-    for site, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv6']].values:
 
-        subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv6']==ipv6)]
 
+    for site, ipvString in cntDf[cntDf['cnt']>=minCount][['site','ipv']].values:
+
+        subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
         # build the lists of values
         src_sites, dest_sites, src_change, dest_change = [],[],[],[]
         for idx, row in subset.iterrows():
@@ -211,7 +212,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
                 dest_change.append(row['%change'])
 
         # create the alarm source content
-        doc = {'ipv6':ipv6,'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
+        doc = {'ipv':ipvString, 'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
         doc['site'] = site
 
         # send the alarm with the proper message
@@ -222,22 +223,24 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
     alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
-    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv6', 'last3days_avg', '%change']].to_dict('records'):
+    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change']].to_dict('records'):
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
-
 
 now = datetime.utcnow()
 dateTo = datetime.strftime(now, '%Y-%m-%d %H:%M')
 dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%d %H:%M')
 
 # get the data
-rowDf = pd.DataFrame(queryData('ps_throughput', dateFrom, dateTo))
-rowDf['dt'] = pd.to_datetime(rowDf['from'], unit='ms')
+rawDf = pd.DataFrame(queryData('ps_throughput', dateFrom, dateTo))
+rawDf['dt'] = pd.to_datetime(rawDf['from'], unit='ms')
+
+booleanDictionary = {True: 'ipv6', False: 'ipv4'}
+rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 
 # calculate the statistics
-statsDf = getStats(rowDf, 1.9)
+statsDf = getStats(rawDf, 2)
 
 # Bandwidth decreased
-createAlarms(statsDf[(statsDf['z']<=-1.9)&(statsDf['%change']!=100)], 'Bandwidth decreased')
+createAlarms(statsDf[(statsDf['z']<=-1.9)], 'Bandwidth decreased')
 # Bandwidth recovery
 createAlarms(statsDf[(statsDf['z']>=1.9)], 'Bandwidth increased')
