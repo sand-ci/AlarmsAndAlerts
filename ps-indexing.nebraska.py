@@ -16,8 +16,7 @@ matplotlib.use("agg")
 matplotlib.rc('font', **{'size': 12})
 
 
-es = Elasticsearch(hosts=['gracc.opensciencegrid.org/q/'],
-                   scheme='https', port=443, timeout=300)
+es = Elasticsearch(hosts=[{'host':'gracc.opensciencegrid.org/q/','port':443, 'scheme':'https'}], request_timeout=300)
 
 if es.ping():
     print('connected to ES.')
