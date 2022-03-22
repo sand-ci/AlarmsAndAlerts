@@ -21,8 +21,8 @@ with open('/config/config.json') as json_data:
     config = json.load(json_data,)
 
 es = Elasticsearch(
-    hosts=[{'host': config['ES_HOST'], 'port':9200, 'scheme':'https'}],
-    http_auth=(config['ES_USER'], config['ES_PASS']),
+    hosts=[{'host': config['ES_HOST'], 'port': 9200, 'scheme': 'https'}],
+    basic_auth=(config['ES_USER'], config['ES_PASS']),
     request_timeout=60)
 
 if es.ping():

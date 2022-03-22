@@ -16,7 +16,9 @@ matplotlib.use("agg")
 matplotlib.rc('font', **{'size': 12})
 
 
-es = Elasticsearch(hosts=[{'host':'gracc.opensciencegrid.org/q/','port':443, 'scheme':'https'}], request_timeout=300)
+es = Elasticsearch(
+    hosts=[{'host': 'gracc.opensciencegrid.org/q/', 'port': 443, 'scheme': 'https'}],
+    request_timeout=60)
 
 if es.ping():
     print('connected to ES.')
@@ -64,6 +66,7 @@ for ind in ps_indices:
     }
 
     res = es.count(index=ind, body=types_query)
+    print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][1] = res['count']
 
     types_query = {
@@ -73,6 +76,7 @@ for ind in ps_indices:
     }
 
     res = es.count(index=ind, body=types_query)
+    print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][2] = res['count']
 
 
@@ -90,8 +94,8 @@ df.referent = df.referent / 2
 
 df['change'] = df['current'] / df['referent']
 df['pr1'] = df['current'] < 10
-df['pr2'] = df['change'] < 0.7
-df['problem'] = df['pr1'] | df['pr1']
+df['pr2'] = df['change'] < 0.3
+df['problem'] = df['pr1'] | df['pr2']
 df.head(10)
 
 
