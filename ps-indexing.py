@@ -70,7 +70,7 @@ for ind in ps_indices:
         }
     }
 
-    res = es.count(index=ind, q=types_query)
+    res = es.count(index=ind, query=types_query)
     print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][1] = res['count']
 
@@ -80,7 +80,7 @@ for ind in ps_indices:
         }
     }
 
-    res = es.count(index=ind, q=types_query)
+    res = es.count(index=ind, query=types_query)
     print(res['count'], 'referent interval query:', types_query)
     ps_indices[ind][2] = res['count']
 
