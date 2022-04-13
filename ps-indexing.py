@@ -64,24 +64,20 @@ for ind in ps_indices:
     ref_start = int(ref_start.timestamp() * 1000)
     ref_end = int(ref_end.timestamp() * 1000)
 
-    types_query = {
-        "query": {
-            "range": {"timestamp": {"gt": ref_start, 'lte': ref_end}}
-        }
+    query = {
+        "range": {"timestamp": {"gt": ref_start, 'lte': ref_end}}
     }
 
-    res = es.count(index=ind, query=types_query)
-    print(res['count'], 'referent interval query:', types_query)
+    res = es.count(index=ind, query=query)
+    print(res['count'], 'referent interval query:', query)
     ps_indices[ind][1] = res['count']
 
-    types_query = {
-        "query": {
-            "range": {"timestamp": {"gt": ref_end, 'lte': int(sub_end.timestamp() * 1000)}}
-        }
+    query = {
+        "range": {"timestamp": {"gt": ref_end, 'lte': int(sub_end.timestamp() * 1000)}}
     }
 
-    res = es.count(index=ind, query=types_query)
-    print(res['count'], 'referent interval query:', types_query)
+    res = es.count(index=ind, query=query)
+    print(res['count'], 'referent interval query:', query)
     ps_indices[ind][2] = res['count']
 
 
