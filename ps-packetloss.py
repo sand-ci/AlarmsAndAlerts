@@ -75,10 +75,10 @@ alarmFirewall = alarms('Networking', 'Perfsonar', 'Firewall issue')
 
 # Get all destination hosts that have more than 5 source hosts 
 groups = complete_ploss.groupby(['dest_host']).agg({'src_host': 'count'}).reset_index()
-destWhereCntGrTh5hosts = groups[groups['src_host']>5]['dest_host'].values
+destWhereCntGrTh10hosts = groups[groups['src_host']>10]['dest_host'].values
 
-if len(destWhereCntGrTh5hosts)>0:
-    for host in destWhereCntGrTh5hosts:
+if len(destWhereCntGrTh10hosts)>0:
+    for host in destWhereCntGrTh10hosts:
         site = complete_ploss[complete_ploss['dest_host']==host]['dest_site'].unique()[0]
         site_list = complete_ploss[complete_ploss['dest_host']==host]['src_site'].values.tolist()
         data = {"site":site, "host":host, "sites":site_list}
@@ -86,7 +86,7 @@ if len(destWhereCntGrTh5hosts)>0:
 
 
 # Send the reamaining pairs under 'complete packet loss' event type
-blocked = complete_ploss[(~complete_ploss['dest_host'].isin(destWhereCntGrTh5hosts))][cols].to_dict(orient='records')
+blocked = complete_ploss[(~complete_ploss['dest_host'].isin(destWhereCntGrTh10hosts))][cols].to_dict(orient='records')
 alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
 for item in blocked:
     alarmCompleteLoss.addAlarm(body='Link shows complete packet loss', tags=[item['src_site'], item['dest_site']], source=item)
