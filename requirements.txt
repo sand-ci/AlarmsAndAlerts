@@ -1,0 +1,9 @@
+elasticsearch
+numpy
+pandas
+requests
+ipwhois
+cdifflib
+matplotlib
+scipy
+# ipython 

@@ -26,7 +26,7 @@
 '''
 
 
-import itertools
+# import itertools
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -35,12 +35,12 @@ import datetime as dt
 
 
 import pandas as pd
-from IPython.display import display
+# from IPython.display import display
 import numpy as np
 
 from data_objects.NodesMetaData import NodesMetaData
 import utils.helpers as hp
-from utils.helpers import timer
+# from utils.helpers import timer
 from alarms import alarms
 
 # the query
