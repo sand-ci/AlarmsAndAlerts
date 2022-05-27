@@ -1,9 +1,6 @@
-import itertools
-from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager
-from datetime import datetime
 import pandas as pd
 import json
 import requests
@@ -14,31 +11,32 @@ from utils.helpers import timer
 from alarms import alarms
 
 
-
 # Builds the trceroute query
 def queryPSTrace(dt):
-    include=["timestamp","src","dest","asns","src_host","dest_host","src_site","dest_site",'hops','ttls','destination_reached']
+    include = ["timestamp", "src", "dest", "asns", "src_host", "dest_host",
+               "src_site", "dest_site", 'hops', 'ttls', 'destination_reached']
     query = {
-      "query" : {
-        "bool" : {
-          "must" : [
-            {
-              "range" : {
-                "timestamp" : {
-                  "gt" : dt[0],
-                  "lte": dt[1]
-                }
-              }
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "range": {
+                            "timestamp": {
+                                "gt": dt[0],
+                                "lte": dt[1]
+                            }
+                        }
+                    }
+                ]
             }
-          ]
         }
-      }
     }
     # print(str(query).replace("\'", "\""))
     try:
-        return scan_gen(scan(hp.es,index="ps_trace",query=query, filter_path=['_scroll_id', '_shards', 'hits.hits._source']))
+        return scan_gen(scan(hp.es, index="ps_trace", query=query, filter_path=['_scroll_id', '_shards', 'hits.hits._source']))
     except Exception as e:
         print(e)
+
 
 def scan_gen(scan):
     while True:
@@ -48,6 +46,8 @@ def scan_gen(scan):
             break
 
 # gets the data from ES
+
+
 def ps_trace(dt):
     scan_gen = queryPSTrace(dt)
     items = []
@@ -64,12 +64,15 @@ data = manager.list()
 
 # queries in chunks based on time ranges
 
+
 def getTraceData(dtRange):
     traceData = ps_trace(dtRange)
-    if len(traceData)>0:
+    if len(traceData) > 0:
         data.extend(traceData)
 
 # laods the data in parallel
+
+
 @timer
 def runInParallel(dateFrom, dateTo):
     # query the past 12 hours and split the period into 8 time ranges
@@ -81,18 +84,17 @@ def runInParallel(dateFrom, dateTo):
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
 
-
 # The traceroute measures provide a list of IP adresses
 # as well as a list of correcponding AS numbers
 # Below we map IP->ASN and ASN->IP
 @timer
 def mapHopsAndASNs(df):
 
-    asn2Hop,hop2ASN = {},{}
+    asn2Hop, hop2ASN = {}, {}
     strange = []
 
-    pch, ipl = [],[]
-    subset = df[['asns','hops', 'pair','ttls']].values.tolist()
+    pch, ipl = [], []
+    subset = df[['asns', 'hops', 'pair', 'ttls']].values.tolist()
     # max_ttl is needed when we later build a dataframe where each column is a ttl number
     max_ttl = 0
 
@@ -101,7 +103,7 @@ def mapHopsAndASNs(df):
             if max(ttls) > max_ttl:
                 max_ttl = max(ttls)
 
-        if len(asns)==len(hops):
+        if len(asns) == len(hops):
             for i in range(len(asns)):
                 if asns[i] not in asn2Hop.keys():
                     asn2Hop[asns[i]] = [hops[i]]
@@ -118,10 +120,10 @@ def mapHopsAndASNs(df):
                     if asns[i] not in temp:
                         temp.append(asns[i])
                         hop2ASN[hops[i]] = temp
-        else: 
+        else:
             print('Size of hops and ASNs differ. This should not happen')
-            strange.append([pair,asns,hops])
-            
+            strange.append([pair, asns, hops])
+
     return asn2Hop, hop2ASN, max_ttl
 
 
@@ -130,9 +132,11 @@ def mapHopsAndASNs(df):
 @timer
 def fix0ASNs(df):
 
-    fix_asns, zfix = [],[]
-    relDf = df[['src', 'dest', 'asns', 'hops', 'pair', 'destination_reached','timestamp','ttls']].copy()
-    all_reachedDf = relDf.groupby('pair')[['destination_reached']].apply(lambda x: all(x.values)).to_frame().rename(columns={0:'all_dests_reached'}).reset_index()
+    fix_asns, zfix = [], []
+    relDf = df[['src', 'dest', 'asns', 'hops', 'pair',
+                'destination_reached', 'timestamp', 'ttls']].copy()
+    all_reachedDf = relDf.groupby('pair')[['destination_reached']].apply(lambda x: all(
+        x.values)).to_frame().rename(columns={0: 'all_dests_reached'}).reset_index()
 
     relDf = pd.merge(relDf, all_reachedDf, on='pair', how='left')
 
@@ -140,7 +144,7 @@ def fix0ASNs(df):
     relDf['hops_updated'] = None
 
     try:
-        for idx, asns, hops, s, d, destination_reached in relDf[['asns','hops','src','dest','all_dests_reached']].itertuples():
+        for idx, asns, hops, s, d, destination_reached in relDf[['asns', 'hops', 'src', 'dest', 'all_dests_reached']].itertuples():
             asns_updated = asns.copy()
             hops_updated = hops.copy()
             # print(idx, asns, hops, s, d, destination_reached)
@@ -152,22 +156,26 @@ def fix0ASNs(df):
                     ip = hops[pos]
                     asns4IP = hop2ASN[ip]
 
-                    if 0 in asns4IP: asns4IP.remove(0)
+                    if 0 in asns4IP:
+                        asns4IP.remove(0)
 
                     asns_updated[pos] = n
                     if len(asns4IP) == 1:
                         asns_updated[pos] = asns4IP[0]
-                        if idx not in zfix: zfix.append(idx)
+                        if idx not in zfix:
+                            zfix.append(idx)
                     elif len(asns4IP) > 1:
                         for ip in asns4IP:
-                            if len(asns4IP)==2:
+                            if len(asns4IP) == 2:
                                 alt = [el for el in asns4IP if el != n]
                                 # altASNsDict[asn] = alt[0]
                                 asns_updated[pos] = alt[0]
-                                if idx not in zfix: zfix.append(idx)
+                                if idx not in zfix:
+                                    zfix.append(idx)
                                 # print(n,'.............', alt[0])
-                            elif len(hop2ASN[ip])>2:
-                                print('There are more possibilities ........................', idx, asns, pos, alt)
+                            elif len(hop2ASN[ip]) > 2:
+                                print('There are more possibilities ........................',
+                                      idx, asns, pos, alt)
 
             relDf.at[idx, 'asns_updated'] = asns_updated
             # print(set(asns))
@@ -185,15 +193,15 @@ def fix0ASNs(df):
         print(idx, asns, hops, s, d, destination_reached)
 
 
-
 # Gets all ASNs for each site name from CRIC
 # They will later be used as alternatives to each other
 @timer
 def getCricASNInfo():
-    
+
     cricDict = {}
 
-    response = requests.get("https://wlcg-cric.cern.ch/api/core/rcsite/query/list/?json",verify=False)
+    response = requests.get(
+        "https://wlcg-cric.cern.ch/api/core/rcsite/query/list/?json", verify=False)
     rcsites = json.loads(response.text)
 
     cricsites = {}
@@ -206,31 +214,30 @@ def getCricASNInfo():
                     for iptype in rcsites[rcsite]['netroutes'][netroute]["networks"]:
                         for subnet in rcsites[rcsite]['netroutes'][netroute]["networks"][iptype]:
                             asn = rcsites[rcsite]['netroutes'][netroute]["asn"]
-                            if asn not in temp: temp.append(asn)
+                            if asn not in temp:
+                                temp.append(asn)
             if temp:
                 cricsites[rcsite] = temp
-
 
     cricDict = {}
     for key, vals in cricsites.items():
         # print(vals)
-        if len(vals)>1:
+        if len(vals) > 1:
             for v in vals:
                 if v not in cricDict.keys():
                     cricDict[v] = vals.copy()
                     cricDict[v].remove(v)
                     # print(cricDict)
                 else:
-                    print('                currvals',cricDict[v])
+                    print('                currvals', cricDict[v])
 
     return cricDict
-
 
 
 # Builds a dictionalry of ASNs, where the key is a single AS number and
 # the values are the alaternative ASNs dicovered through the hops mapping
 @timer
-def getAltASNs(asn2Hop,hop2ASN):
+def getAltASNs(asn2Hop, hop2ASN):
     alt_dict = {}
     for asn, l in asn2Hop.items():
         if asn != 0:
@@ -240,10 +247,10 @@ def getAltASNs(asn2Hop,hop2ASN):
                 if 0 in others:
                     others.remove(0)
 
-                if len(others)==2:
+                if len(others) == 2:
                     # if 0 not in hop2ASN[ip]:
                     alt = [el for el in hop2ASN[ip] if el != asn]
-                    if len(alt)>1:
+                    if len(alt) > 1:
                         print(f'There are >1 alternatives to {asn}: {alt}')
 
                     altASN = [alt[0]]
@@ -254,7 +261,7 @@ def getAltASNs(asn2Hop,hop2ASN):
                         altASN = temp
 
                     alt_dict[asn] = altASN
-                elif len(others)>2:
+                elif len(others) > 2:
                     print(asn, others)
                     print('There are more possibilities ........................')
     return alt_dict
@@ -270,8 +277,8 @@ def getAltsOfAlts(altASNsDict):
         allVals = vals
         # print(key, vals)
         for aslist in alt_dict.values():
-            temp=[]
-            if key in aslist and len(aslist)>1:
+            temp = []
+            if key in aslist and len(aslist) > 1:
                 temp = aslist.copy()
                 allVals.extend(list(set(temp)))
 
@@ -281,7 +288,6 @@ def getAltsOfAlts(altASNsDict):
         altsOfAlts[key] = allVals
 
     return altsOfAlts
-
 
 
 # Adds known ASNs manuaaly
@@ -294,50 +300,59 @@ def mapASNsManualy(asn1, asn2):
         altsOfAlts[asn1]
 
 
-# Builds a dataframe that strips all repeated values and 
+# Builds a dataframe that strips all repeated values and
 # hashes each clean path
 # Also calculates what % a path gets used for the given period
 @timer
 def getStats4Paths(relDf, df):
-    allPathsList, uniquePathsList = [],[]
+    allPathsList, uniquePathsList = [], []
 
     def hashASNs(group):
         try:
             hashList = []
-            if len(group.asns_updated.values)>1:
+            if len(group.asns_updated.values) > 1:
                 for g in group.asns_updated.values:
-                    if g is not None and g==g:
+                    if g is not None and g == g:
                         asnList = list(set(g.copy()))
-                    
-                    if 0 in asnList: asnList.remove(0)
+
+                    if 0 in asnList:
+                        asnList.remove(0)
 
                     hashid = hash(frozenset(asnList))
 
                     if hashid not in hashList:
                         hashList.append(hashid)
 
-                        if len(g)>0:
-                            uniquePathsList.append([group.name[0], group.name[1], asnList, len(asnList), len(group.values), hashid, group.all_dests_reached.values[0]])
+                        if len(g) > 0:
+                            uniquePathsList.append([group.name[0], group.name[1], asnList, len(
+                                asnList), len(group.values), hashid, group.all_dests_reached.values[0]])
 
-                    if len(g)>0:
-                        allPathsList.append([group.name[0], group.name[1], asnList, len(asnList), len(group.values), hashid])
+                    if len(g) > 0:
+                        allPathsList.append([group.name[0], group.name[1],
+                                            asnList, len(asnList), len(group.values), hashid])
 
         except Exception as e:
-            print('Issue wtih:',group.name, asnList)
+            print('Issue wtih:', group.name, asnList)
             print(e)
 
-    relDf[['src','dest','asns_updated','hops', 'all_dests_reached']].groupby(['src','dest']).apply(lambda x: hashASNs(x))
+    relDf[['src', 'dest', 'asns_updated', 'hops', 'all_dests_reached']
+          ].groupby(['src', 'dest']).apply(lambda x: hashASNs(x))
 
-    cleanPathsDf = pd.DataFrame(uniquePathsList).rename(columns={0:'src', 1:'dest', 2:'asns_updated', 3:'cnt_asn', 4:'cnt_total_measures', 5:'hash', 6:'all_dests_reached'})
+    cleanPathsDf = pd.DataFrame(uniquePathsList).rename(columns={
+        0: 'src', 1: 'dest', 2: 'asns_updated', 3: 'cnt_asn', 4: 'cnt_total_measures', 5: 'hash', 6: 'all_dests_reached'})
     cleanPathsDf['pair'] = cleanPathsDf['src']+'-'+cleanPathsDf['dest']
-    cleanPaths = pd.DataFrame(allPathsList).rename(columns={0:'src', 1:'dest', 2:'asns_updated', 3:'cnt_asn', 4:'cnt_total_measures', 5:'hash'})
+    cleanPaths = pd.DataFrame(allPathsList).rename(
+        columns={0: 'src', 1: 'dest', 2: 'asns_updated', 3: 'cnt_asn', 4: 'cnt_total_measures', 5: 'hash'})
 
-    pathFreq = cleanPaths.groupby(['src','dest'])['hash'].apply(lambda x: x.value_counts(normalize=True))
-    pathFreq = pd.DataFrame(pathFreq).reset_index().rename(columns={'hash':'hash_freq','level_2':'hash'})
+    pathFreq = cleanPaths.groupby(['src', 'dest'])['hash'].apply(
+        lambda x: x.value_counts(normalize=True))
+    pathFreq = pd.DataFrame(pathFreq).reset_index().rename(
+        columns={'hash': 'hash_freq', 'level_2': 'hash'})
 
-    pathDf = pd.merge(cleanPathsDf, pathFreq, how="inner", on=['src','dest','hash'])
-    sub = df[['dest', 'src_site', 'src', 'dest_site', 'src_host', 'dest_host', 'pair']].drop_duplicates()
-    pathDf = pd.merge(pathDf, sub, on=['pair','src', 'dest'], how='left')
+    pathDf = pd.merge(cleanPathsDf, pathFreq, how="inner", on=['src', 'dest', 'hash'])
+    sub = df[['dest', 'src_site', 'src', 'dest_site',
+              'src_host', 'dest_host', 'pair']].drop_duplicates()
+    pathDf = pd.merge(pathDf, sub, on=['pair', 'src', 'dest'], how='left')
 
     return pathDf
 
@@ -354,11 +369,11 @@ def getBaseline(dd):
             cnt_max = max(group.cnt_asn.values)
             freq_max = max(group.hash_freq.values)
 
-            cnt_max_position = [pos for pos, i in enumerate(group.cnt_asn) if i==cnt_max]
-            freq_max_position = [pos for pos, i in enumerate(group.hash_freq) if i==freq_max]
+            cnt_max_position = [pos for pos, i in enumerate(group.cnt_asn) if i == cnt_max]
+            freq_max_position = [pos for pos, i in enumerate(group.hash_freq) if i == freq_max]
 
             # if path was used 65% of the time, use it as a baseline
-            if freq_max>=0.65:
+            if freq_max >= 0.65:
                 diversity = 0
                 position = freq_max_position[0]
                 for pos in freq_max_position:
@@ -368,21 +383,21 @@ def getBaseline(dd):
                 max_position = [position]
                 freq_max = group.hash_freq.values[position]
             # if not, get the bath with the highest number of unique ASNs
-            else: 
-                if len(cnt_max_position)>1:
+            else:
+                if len(cnt_max_position) > 1:
                     path_freq = 0
                     for pos in cnt_max_position:
                         if path_freq < group.hash_freq.values[pos]:
                             position = pos
                             path_freq = group.hash_freq.values[pos]
                     max_position = [position]
-                else: 
+                else:
                     max_position = cnt_max_position
 
             baselineList.append(group.index.values[max_position[0]])
 
         except Exception as e:
-            print('Issue wtih:',group,e)
+            print('Issue wtih:', group, e)
 
     # the dataframe conatingn one path as a baseline per pair
     baseLine = dd[dd.index.isin(baselineList)].copy()
@@ -391,7 +406,6 @@ def getBaseline(dd):
     print(f' Baseline: {len(baseLine)} \n left to compare to: {len(compare2)}')
 
     return [baseLine, compare2]
-
 
 
 # Compares each path to the baseline. Does that for each pair and flags the ASN that are not on the baseline path
@@ -403,16 +417,16 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict):
 
     for name, group in cut.groupby('pair'):
         try:
-            base = baseDf[baseDf['pair']==name]['asns_updated'].values.tolist()[0]
+            base = baseDf[baseDf['pair'] == name]['asns_updated'].values.tolist()[0]
 
             upbase = []
             if name in updatedbaseLine['pair'].values:
-                upbase = updatedbaseLine[updatedbaseLine['pair']==name]['asns_updated'].values.tolist()[0]
+                upbase = updatedbaseLine[updatedbaseLine['pair'] == name]['asns_updated'].values.tolist()[
+                    0]
 
-
-            casns = compare2[compare2['pair']==name]['asns_updated'].tolist()
+            casns = compare2[compare2['pair'] == name]['asns_updated'].tolist()
             asns_expanded = list([j for i in casns for j in i])
-            counter=collections.Counter(asns_expanded)
+            counter = collections.Counter(asns_expanded)
 
             flag = False
             diff_temp = []
@@ -422,57 +436,57 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict):
                 freq = group['hash_freq'].values[i]
                 diff = list(set(asns)-set(base))
 
-                if len(diff)>0:
+                if len(diff) > 0:
 
                     for d in diff:
 
                         if not d in upbase:
                             if d in altsOfAlts.keys():
                                 # if none of the alternative ASNs is in the baseline path, then flag it to True (meaning raise an alarm)
-                                flag = not any(False if alt not in base or alt in upbase else True for alt in altsOfAlts[d])
+                                flag = not any(
+                                    False if alt not in base or alt in upbase else True for alt in altsOfAlts[d])
                                 # print(flag)
 
                             elif d in cricDict.keys():
-                                flag = not any(False if alt not in base or alt in upbase else True for alt in cricDict[d])
+                                flag = not any(
+                                    False if alt not in base or alt in upbase else True for alt in cricDict[d])
 
-                            else: flag = True
+                            else:
+                                flag = True
 
                         alarms.append(flag)
 
-
                     diff_temp.extend(diff)
 
-            if any(alarms)>0 and len(base)>=2:
+            if any(alarms) > 0 and len(base) >= 2:
                 diffs[name] = list(set(diff_temp))
         except Exception as e:
-            print('Issue wtih:',name,e)
-
+            print('Issue wtih:', name, e)
 
     print(f'Number of pairs flagged {len(diffs)}')
 
     return diffs
 
 
-
 # Builds a dataframe that takes into account the missing TTLs
 @timer
 def positionASNsUsingTTLs(pairs, relDf, max_ttl):
-    subset = relDf[relDf['pair'].isin(pairs)][['asns_updated','hops','pair','ttls']].values.tolist()
+    subset = relDf[relDf['pair'].isin(
+        pairs)][['asns_updated', 'hops', 'pair', 'ttls']].values.tolist()
 
-    columns = ['pair','max_ttl']
-    columns.extend(range(1,max_ttl+1))
+    columns = ['pair', 'max_ttl']
+    columns.extend(range(1, max_ttl+1))
     posDf = pd.DataFrame(columns=columns)
 
     for asns, hops, pair, ttls in subset:
-        if len(asns)==len(hops) and ttls: 
+        if len(asns) == len(hops) and ttls:
             idx = len(posDf)
             posDf.loc[idx, ttls] = asns
-            missing = {x:-1 for x in range(ttls[0], ttls[-1]+1) if x not in ttls}
+            missing = {x: -1 for x in range(ttls[0], ttls[-1]+1) if x not in ttls}
             posDf.loc[idx, list(missing.keys())] = list(missing.values())
             posDf.loc[idx, 'pair'] = pair
 
     return posDf
-
 
 
 # Gets the probability of an ASN to apear at each position on the path
@@ -482,17 +496,16 @@ def getProbabilities(posDf, max_ttl):
 
     def calcP(g):
         pair = g.pair.values[0]
-        for col in range(1,max_ttl+1):
+        for col in range(1, max_ttl+1):
             asns = g[col].value_counts('probability').index.values
             p = g[col].value_counts('probability').values
 
-            for i,asn in enumerate(asns):
-                plist.append([pair,asn,col,p[i]])
+            for i, asn in enumerate(asns):
+                plist.append([pair, asn, col, p[i]])
 
     posDf.groupby('pair').apply(lambda g: calcP(g))
 
-    return pd.DataFrame(plist,columns=['pair','asn','pos','P'])
-
+    return pd.DataFrame(plist, columns=['pair', 'asn', 'pos', 'P'])
 
 
 # In some cases a devixe on the path could be mostly down and only sometimes reponds.
@@ -501,31 +514,30 @@ def getProbabilities(posDf, max_ttl):
 def addOnAndOffNodes(diffs, probDf, baseLine):
 
     for p in diffs.keys():
-        sub = probDf[(probDf['pair']==p)]
-        onoff,currASNs = [],[]
+        sub = probDf[(probDf['pair'] == p)]
+        onoff, currASNs = [], []
 
         for d in diffs[p]:
-            pos = sub[(sub['asn']==d)]['pos'].values[0]
-            asns = sub[sub['pos']==pos]['asn'].values
+            pos = sub[(sub['asn'] == d)]['pos'].values[0]
+            asns = sub[sub['pos'] == pos]['asn'].values
 
             # if there are only 2 values at that position
             # one is the flagged ASN and the other one is -1,
-            # meaning the ttl was missing, 
+            # meaning the ttl was missing,
             # then the node was On and Off and should not be considered as path change
-            if len(asns)==2 and -1 in asns:
+            if len(asns) == 2 and -1 in asns:
                 onoff.append(sorted(asns)[1])
 
         onoff = list(set(onoff))
         if onoff:
-            currASNs = baseLine[baseLine['pair']==p]['asns_updated'].values.tolist()[0].copy()
+            currASNs = baseLine[baseLine['pair'] == p]['asns_updated'].values.tolist()[0].copy()
             currASNs.extend(onoff)
-            baseLine.at[baseLine[baseLine['pair']==p].index.values[0], 'asns_updated'] = currASNs
+            baseLine.at[baseLine[baseLine['pair'] == p].index.values[0], 'asns_updated'] = currASNs
 
     return baseLine
 
 
-
-# Builds a dataframe based on the flagged ASNs when tests take another route (change path), 
+# Builds a dataframe based on the flagged ASNs when tests take another route (change path),
 # the number of pairs between which the ASN appears, affected sites, AS owner and the queried period
 @timer
 def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
@@ -533,30 +545,30 @@ def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
     diffData = []
     for pair, diff in diffs.items():
         for d in diff:
-            diffData.append([pair,d])
-
+            diffData.append([pair, d])
 
     diffDf = pd.DataFrame(diffData, columns=['pair', 'diff'])
 
-    sub = df[['dest', 'src_site', 'src', 'dest_site', 'src_host', 'dest_host', 'pair']].drop_duplicates()
+    sub = df[['dest', 'src_site', 'src', 'dest_site',
+              'src_host', 'dest_host', 'pair']].drop_duplicates()
     diffDf = pd.merge(diffDf, sub, on='pair', how='left')
-    cntPairs = diffDf.groupby(['diff'])[['pair']].count().sort_values('pair',ascending=False)
+    cntPairs = diffDf.groupby(['diff'])[['pair']].count().sort_values('pair', ascending=False)
 
-    top = cntPairs[cntPairs['pair']>=10]
+    top = cntPairs[cntPairs['pair'] >= 10]
 
     # n = 80 if len(allPairs)>80 else len(allPairs)
     # pairs2Plot = allPairs.sample(n=n, random_state=1).values
 
     alarmsList = []
 
-    for asn, g in diffDf[diffDf['diff'].isin(top.index)][['diff','src_site','dest_site']].drop_duplicates().groupby('diff'):
+    for asn, g in diffDf[diffDf['diff'].isin(top.index)][['diff', 'src_site', 'dest_site']].drop_duplicates().groupby('diff'):
         affectedSites = list(set(g['src_site'].values.tolist() + g['dest_site'].values.tolist()))
 
         owner = asnInfo[str(asn)] if str(asn) in asnInfo.keys() else ''
         alarmsList.append({'asn': asn,
                            'owner': asnInfo[str(asn)],
-                           'num_pairs': str(top[top.index==asn]['pair'].values[0]),
-                           'sites':affectedSites,
+                           'num_pairs': str(top[top.index == asn]['pair'].values[0]),
+                           'sites': affectedSites,
                            'from': dateFrom,
                            'to': dateTo})
 
@@ -569,11 +581,11 @@ def getASNInfo(ids):
 
     query = {
         "query": {
-                "terms": {
-                  "_id": ids
-                }
+            "terms": {
+                "_id": ids
             }
         }
+    }
 
     # print(str(query).replace("\'", "\""))
     asnDict = {}
@@ -597,10 +609,6 @@ def sendAlarms(data):
         )
 
 
-
-
-
-
 # query the past 12 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(12)
 # dateFrom, dateTo = ['2022-05-25 09:40', '2022-05-25 21:40']
@@ -608,12 +616,12 @@ runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
 df['pair'] = df['src']+'-'+df['dest']
 
-#TODO
+# TODO
 # df = metaLookUpFix(df)
 asn2Hop, hop2ASN, max_ttl = mapHopsAndASNs(df)
 
 cricDict = getCricASNInfo()
-altASNsDict = getAltASNs(asn2Hop,hop2ASN)
+altASNsDict = getAltASNs(asn2Hop, hop2ASN)
 altsOfAlts = getAltsOfAlts(altASNsDict)
 
 mapASNsManualy(513, 20969)
@@ -625,20 +633,22 @@ relDf = fix0ASNs(df)
 pathDf = getStats4Paths(relDf, df)
 
 # remove rows where site is None and ignore those with 100% stable paths
-valid = pathDf[~(pathDf['src_site'].isnull())&~(pathDf['dest_site'].isnull())&(pathDf['hash_freq']<1)].copy()
+valid = pathDf[~(pathDf['src_site'].isnull()) & ~(
+    pathDf['dest_site'].isnull()) & (pathDf['hash_freq'] < 1)].copy()
 baseLine, compare2 = getBaseline(valid)
 
 # get a second stable path (baseline) for the T1 sites
-T1 = ['BNL-ATLAS','FZK-LCG2','IN2P3-CC','INFN-T1','JINR-T1','KR-KISTI-GSDC-01','NDGF-T1','NIKHEF-ELPROD',
-      'pic','RAL-LCG2','RRC-KI-T1','SARA-MATRIX','Taiwan-LCG2','TRIUMF-LCG2','USCMS-FNAL-WC1']
-t1s = compare2[(compare2['src_site'].isin(T1))&(compare2['dest_site'].isin(T1))]
+T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
+      'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
+t1s = compare2[(compare2['src_site'].isin(T1)) & (compare2['dest_site'].isin(T1))]
 updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
 
 # Ignore sites for which we know there's an issue
 ignore_list = ['ATLAS-CBPF', 'NCP-LCG2', 'UTA_SWT2', 'RRC_KI', 'CBPF', 'IN2P3-CC', 'JINR-LCG2',
                'JINR-T1', 'RRC-KI-T1', 'RRC-KI', 'ITEP', 'RU-Protvino-IHEP']
-cut = compare2[(~compare2['src_site'].isin(ignore_list))&(~compare2['dest_site'].isin(ignore_list))]
+cut = compare2[(~compare2['src_site'].isin(ignore_list)) &
+               (~compare2['dest_site'].isin(ignore_list))]
 
 # Get the pairs which took different form the usual paths
 diffs = getChanged(baseLine, compare2, updatedbaseLine, altsOfAlts, cricDict)
