@@ -1,5 +1,6 @@
 from elasticsearch.helpers import scan
 import utils.helpers as hp
+import pandas as pd
 
 
 valueField = {
@@ -8,6 +9,175 @@ valueField = {
             'ps_retransmits': 'retransmits',
             'ps_throughput': 'throughput'
             }
+
+
+def allTestedNodes(period):
+    def query(direction):
+        return {
+      "size" : 0,
+      "query" : {
+        "bool" : {
+          "must" : [
+            {
+              "range" : {
+                "timestamp" : {
+                  "gt" : period[0],
+                  "lte": period[1]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "aggregations" : {
+        "groupby" : {
+          "composite" : {
+            "size" : 9999,
+            "sources" : [
+              {
+                direction : {
+                  "terms" : {
+                    "field" : "src"
+                  }
+                }
+              },
+              {
+                f"{direction}_host" : {
+                  "terms" : {
+                    "field" : "src_host"
+                  }
+                }
+              },
+              {
+                f"{direction}_site" : {
+                  "terms" : {
+                    "field" : "src_site"
+                  }
+                }
+              },
+              {
+                "ipv6" : {
+                  "terms" : {
+                    "field" : "ipv6"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+    aggrs = []
+    pairsDf = pd.DataFrame()
+    for idx in hp.INDICES:
+        aggdata = hp.es.search(index=idx, body=query('src'))
+        aggrs = []
+        for item in aggdata['aggregations']['groupby']['buckets']:
+            aggrs.append({
+                          'ip': item['key']['src'],
+                          'ipv6': item['key']['ipv6'],
+                          'host': item['key']['src_host'],
+                          'site': item['key']['src_site'],
+            })
+
+        aggdata = hp.es.search(index=idx, body=query('dest'))
+        for item in aggdata['aggregations']['groupby']['buckets']:
+            aggrs.append({
+                          'ip': item['key']['dest'],
+                          'ipv6': item['key']['ipv6'],
+                          'host': item['key']['dest_host'],
+                          'site': item['key']['dest_site'],
+                         })
+
+        # pairsDf = pairsDf.append(aggrs)
+        pairsDf = pd.concat([pairsDf, pd.DataFrame(aggrs)])
+        pairsDf = pairsDf.drop_duplicates()
+        # print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
+    return pairsDf
+
+
+def mostRecentMetaRecord(ip, ipv6, period):
+    forTimeRange=''
+    if period:
+        forTimeRange = {
+                  "range" : {
+                    "timestamp" : {
+                      "gt" : period[0],
+                      "lte": period[1]
+                    }
+                  }
+                }
+
+    def q(ip, ipv):
+        return {
+          "size" : 1,
+          "_source": ["geolocation",f"external_address.{ipv}_address", "config.site_name", "host","administrator.name","administrator.email","timestamp"],
+            "sort" : [
+            {
+              "timestamp" : {
+                "order" : "desc"
+              }
+            }
+          ],
+          "query" : {
+            "bool" : {
+              "must" : [
+                forTimeRange,
+                {
+                  "term" : {
+                    f"external_address.{ipv}_address" : {
+                      "value" : ip
+                    }
+                  }
+                },
+                {
+                  "bool": {
+                    "should": [
+                      {
+                        "exists": {"field": "host"}
+                      },
+                      {
+                        "exists": {"field": "config.site_name"}
+                      },
+                      {
+                        "exists": {"field": "geolocation"}
+                      },
+                      {
+                        "exists": {"field": "administrator.email"}
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+
+    ipv = 'ipv6' if ipv6 == True else 'ipv4'
+#     print(str(q).replace("\'", "\""))
+    values = {}
+    data = hp.es.search(index='ps_meta', body=q(ip,ipv))
+
+    if data['hits']['hits']:
+        records = data['hits']['hits'][0]['_source']
+        values['ip'] = ip
+        if 'timestamp' in records:
+            values['timestamp'] = records['timestamp']
+        if 'host' in records:
+            values['host'] = records['host']
+        if 'config' in records:
+            if 'site_name' in records['config']:
+                values['site_meta'] = records['config']['site_name']
+        if 'administrator' in records:
+            if 'name' in records['administrator']:
+                values['administrator'] = records['administrator']['name']
+            if 'email' in records['administrator']:
+                values['email'] = records['administrator']['email']
+        if 'geolocation' in records:
+            values['lat'], values['lon'] = records['geolocation'].split(",")
+    return values
+
+
 
 def query4Avg(idx, dateFrom, dateTo):
     val_fld = valueField[idx]

@@ -76,3 +76,11 @@ def CalcMinutes4Period(dateFrom, dateTo):
     time_delta = FindPeriodDiff(dateFrom, dateTo)
 
     return (time_delta.days*24*60 + time_delta.seconds//60)
+
+
+def roundTime(dt=None, round_to=60*60):
+    if dt == None:
+        dt = datetime.utcnow()
+    seconds = (dt - dt.min).seconds
+    rounding = (seconds+round_to/2) // round_to * round_to
+    return dt + timedelta(0,rounding-seconds,-dt.microsecond)
