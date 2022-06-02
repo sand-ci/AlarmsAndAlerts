@@ -13,60 +13,68 @@ valueField = {
 
 def allTestedNodes(period):
     def query(direction):
-        return {
-      "size" : 0,
-      "query" : {
-        "bool" : {
-          "must" : [
-            {
-              "range" : {
-                "timestamp" : {
-                  "gt" : period[0],
-                  "lte": period[1]
+        query = {
+          "size" : 0,
+          "query" : {
+            "bool" : {
+              "must" : [
+                {
+                  "range" : {
+                    "timestamp" : {
+                      "gt" : period[0],
+                      "lte": period[1]
+                    }
+                  }
                 }
+              ]
+            }
+          },
+          "aggregations" : {
+            "groupby" : {
+              "composite" : {
+                "size" : 9999,
+                "sources" : [
+                  {
+                    direction : {
+                      "terms" : {
+                        "field" : direction,
+                        "missing_bucket" : True
+                      }
+                    }
+                  },
+                  {
+                    f"{direction}_host" : {
+                      "terms" : {
+                        "field" : f"{direction}_host",
+                        "missing_bucket" : True
+                      }
+                    }
+                  },
+                  {
+                    f"{direction}_site" : {
+                      "terms" : {
+                        "field" : f"{direction}_site",
+                        "missing_bucket" : True
+                      }
+                    }
+                  },
+                  {
+                    "ipv6" : {
+                      "terms" : {
+                        "field" : "ipv6",
+                        "missing_bucket" : True
+                      }
+                    }
+                  }
+                ]
               }
             }
-          ]
-        }
-      },
-      "aggregations" : {
-        "groupby" : {
-          "composite" : {
-            "size" : 9999,
-            "sources" : [
-              {
-                direction : {
-                  "terms" : {
-                    "field" : "src"
-                  }
-                }
-              },
-              {
-                f"{direction}_host" : {
-                  "terms" : {
-                    "field" : "src_host"
-                  }
-                }
-              },
-              {
-                f"{direction}_site" : {
-                  "terms" : {
-                    "field" : "src_site"
-                  }
-                }
-              },
-              {
-                "ipv6" : {
-                  "terms" : {
-                    "field" : "ipv6"
-                  }
-                }
-              }
-            ]
           }
         }
-      }
-    }
+        # print(str(query).replace("\'", "\""))
+        return query
+
+
     aggrs = []
     pairsDf = pd.DataFrame()
     for idx in hp.INDICES:
@@ -89,10 +97,9 @@ def allTestedNodes(period):
                           'site': item['key']['dest_site'],
                          })
 
-        # pairsDf = pairsDf.append(aggrs)
         pairsDf = pd.concat([pairsDf, pd.DataFrame(aggrs)])
         pairsDf = pairsDf.drop_duplicates()
-        # print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
+        print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
     return pairsDf
 
 

@@ -1,14 +1,11 @@
 from datetime import datetime, timedelta
-import dateutil.relativedelta
 import time
-import os
-import json
 
 from elasticsearch import Elasticsearch
-from elasticsearch.helpers import scan
-import getpass
 import functools
 
+
+INDICES = ['ps_packetloss', 'ps_owd', 'ps_retransmits', 'ps_throughput', 'ps_trace']
 
 with open('/config/config.json') as json_data:
     config = json.load(json_data,)

@@ -13,6 +13,7 @@ df = MetaData().metaDf
 
 # prepare the data for ES - adding _id and _index to send in bulk
 df['_id'] = df['ip']
+df = df[df['_id']!='']
 df['_index'] = "ps_alarms_meta"
 df.fillna('', inplace=True)
 
