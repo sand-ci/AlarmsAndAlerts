@@ -599,7 +599,7 @@ def getASNInfo(ids):
 # Sends the alarms
 @timer
 def sendAlarms(data):
-    ALARM = alarms('Networking', 'Perfsonar', 'Path changed')
+    ALARM = alarms('Networking', 'RENs', 'path changed')
     for issue in data:
         # print(issue)
         ALARM.addAlarm(

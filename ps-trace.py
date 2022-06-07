@@ -1,7 +1,7 @@
 '''
 {
     "category": "Networking",
-    "subcategory": "Perfsonar",
+    "subcategory": "Sites",
     "event": "source cannot reach any",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot reach any destination (destination_reched=False to all tested hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot reach any destination out of %{num_hosts_other_end} hosts"
@@ -9,7 +9,7 @@
 
 {
     "category": "Networking",
-    "subcategory": "Perfsonar",
+    "subcategory": "Sites",
     "event": "destination cannot be reached from any",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by any source (destination_reched=False from all hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot be reached by any source out of %{num_hosts_other_end} hosts"
@@ -17,7 +17,7 @@
 
 {
     "category": "Networking",
-    "subcategory": "Perfsonar",
+    "subcategory": "Sites",
     "event": "destination cannot be reached from multiple",
     "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by >20 sources (destination_reched=False from >20 hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
     "template": "Host(s) %{hosts} @ %{site} cannot be reached from c{cannotBeReachedFrom} out of %{totalNumSites} source sites: %{cannotBeReachedFrom}"
@@ -214,10 +214,10 @@ df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df
 
 # create the alarm types
 alarmDestHostsCantBeReachedFromAny = alarms(
-    "Networking", "Perfsonar", "destination cannot be reached from any")
-alarmSrcHostsCantReachAny = alarms('Networking', 'Perfsonar', "source cannot reach any")
+    "Networking", "Sites", "destination cannot be reached from any")
+alarmSrcHostsCantReachAny = alarms('Networking', 'Sites', "source cannot reach any")
 alarmDestCantBeReachedFromMulty = alarms(
-    'Networking', 'Perfsonar', "destination cannot be reached from multiple")
+    'Networking', 'Sites', "destination cannot be reached from multiple")
 
 # send alarms
 DestHostsCantBeReachedFromAny = findAllDestinationsNeverReached(start='dest', df=df,

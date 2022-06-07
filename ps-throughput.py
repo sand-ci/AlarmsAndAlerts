@@ -191,8 +191,8 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
     cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv']).sum().reset_index()
 
     # create the alarm objects
-    alarmOnPair = alarms('Networking', 'Perfsonar', alarmType)
-    alarmOnMulty = alarms('Networking', 'Perfsonar', f'{alarmType} from/to multiple sites')
+    alarmOnPair = alarms('Networking', 'Sites', alarmType)
+    alarmOnMulty = alarms('Networking', 'Sites', f'{alarmType} from/to multiple sites')
 
     rows2Delete = []
 
@@ -241,6 +241,6 @@ rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 statsDf = getStats(rawDf, 2)
 
 # Bandwidth decreased
-createAlarms(statsDf[(statsDf['z']<=-1.9)], 'Bandwidth decreased')
+createAlarms(statsDf[(statsDf['z']<=-1.9)], 'bandwidth decreased')
 # Bandwidth recovery
-createAlarms(statsDf[(statsDf['z']>=1.9)], 'Bandwidth increased')
+createAlarms(statsDf[(statsDf['z']>=1.9)], 'bandwidth increased')

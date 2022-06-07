@@ -101,7 +101,7 @@ print(problematic.head(10))
 details = problematic[['referent', 'current']].to_dict()
 
 if problematic.shape[0] > 0:
-    ALARM = alarms('Networking', 'Perfsonar', 'indexing')
+    ALARM = alarms('Networking', 'Infrastructure', 'indexing')
     ALARM.addAlarm(body='Issue with indexing PS data at Nebraska',
                    tags=['Nebraska'], source=details)
 

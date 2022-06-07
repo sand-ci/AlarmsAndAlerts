@@ -43,8 +43,8 @@ for host in list(set(sign_ploss['dest_host'].to_list())):
 
 
 # Create the alarm types
-alarmOnList = alarms('Networking', 'Perfsonar', 'high packet loss on multiple links')
-alarmOnPair = alarms('Networking', 'Perfsonar', 'high packet loss')
+alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
+alarmOnPair = alarms('Networking', 'Sites', 'high packet loss')
 
 # Loop over all hosts and generate alarms depending on the number of sites it shows problems with
 for key, item in data.items():
@@ -71,7 +71,7 @@ for key, item in data.items():
 # under 'Firewall issue' event type
 
 complete_ploss = pls.df[(pls.df['flag'] == 2)]
-alarmFirewall = alarms('Networking', 'Perfsonar', 'Firewall issue')
+alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
 
 # Get all destination hosts that have more than 5 source hosts 
 groups = complete_ploss.groupby(['dest_host']).agg({'src_host': 'count'}).reset_index()
