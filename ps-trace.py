@@ -37,8 +37,8 @@ import datetime as dt
 import pandas as pd
 # from IPython.display import display
 import numpy as np
+import utils.queries as qrs
 
-from data_objects.NodesMetaData import NodesMetaData
 import utils.helpers as hp
 # from utils.helpers import timer
 from alarms import alarms
@@ -46,7 +46,7 @@ from alarms import alarms
 # the query
 
 
-def queryPSTrace(dt, include=["timestamp", "destination_reached", "src", "dest", "looping", "path_complete", 'ipv6']):
+def queryPSTrace(dt, include=["timestamp", "destination_reached", "src", "dest", "src_host", "dest_host", "src_site", "dest_site", "looping", "path_complete", 'ipv6']):
     query = {
         "query": {
             "bool": {
@@ -94,17 +94,15 @@ def ps_trace(dt):
 manager = Manager()
 data = manager.list()
 
+
 # query in chunks based on time ranges
-
-
 def getTraceData(dtRange):
     traceData = ps_trace(dtRange)
     if len(traceData) > 0:
         data.extend(traceData)
 
+
 # laod the data in parallel
-
-
 def run(dateFrom, dateTo):
     # query the past 24 hours and split the period into 8 time ranges
     dtList = hp.GetTimeRanges(dateFrom, dateTo, 8)
@@ -112,62 +110,54 @@ def run(dateFrom, dateTo):
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
 
-def findAllDestinationsNeverReached(start, df, alarm, alarmType):
+def findConstantIssuesOnOneEnd(start, df, alarm, alarmType):
     end = 'dest' if start == 'src' else 'src'
-    issuesDf = df.groupby(f'{start}_host').agg(
-        {'destination_reached': ['sum', 'count'], f'{end}_host': 'nunique'}).reset_index()
+
+    issuesDf = df.groupby(f'{start}_host').agg({'destination_reached': ['sum', 'count'], f'{end}_host': 'nunique'}).reset_index()
     issuesDf.columns = [' '.join(col).strip() for col in issuesDf.columns.values]
+    issuesDf = pd.merge(df[[f'{start}_site', f'{start}_host']].drop_duplicates(), issuesDf, on=f'{start}_host', how='right').drop_duplicates()
+    issuesDf = issuesDf[(issuesDf[f'{end}_host nunique'] > 1) & ~(issuesDf[f'{start}_site'].isnull())]
 
-    issuesDf = pd.merge(metaDf[['site', 'host']], issuesDf, left_on='host', right_on=f'{start}_host', how='right').rename(
-        columns={'site': f'{start}_site'}).drop_duplicates()
-    issuesDf = issuesDf[(issuesDf[f'{end}_host nunique'] > 1) &
-                        ~(issuesDf[f'{start}_site'].isnull())]
     nr = issuesDf[(issuesDf['destination_reached sum'] == 0)]
-
-#     display(issuesDf)
-
+    
     nrHosts = []
     for site, group in nr.groupby(f'{start}_site'):
-        hosts = group.host.values
+        hosts = group[f'{start}_host'].values
         nrHosts.extend(hosts)
         doc = {
             'hosts': list(hosts),
             'site': site,
             'num_hosts_other_end': int(nr[nr[f'{start}_site'] == site][f'{end}_host nunique'].sum())
         }
-#         print(doc)
-#         print()
+        # print(doc)
+        # print()
         alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
 
     return nrHosts
 
 
-def issuesWithMultipleSites(start, threshold, nrHosts, df, metaDf, alarm, alarmType):
+def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType):
     end = 'dest' if start == 'src' else 'src'
     # get the unique src-dest combinations and sum the destination_reached in order
     # to find all pairs that never reached the destinarion
     aggBySrcDest = df.groupby(['src', 'dest']).agg(
         {'destination_reached': ['sum', 'count']}).reset_index()
     aggBySrcDest.columns = [' '.join(col).strip() for col in aggBySrcDest.columns.values]
-    aggBySrcDest = pd.merge(metaDf[['ip', 'host', 'site']], aggBySrcDest, left_on='ip', right_on='src', how='right').rename(
-        columns={'host': 'src_host', 'site': 'src_site'}).drop(columns='ip')
-    aggBySrcDest = pd.merge(metaDf[['ip', 'host', 'site']], aggBySrcDest, left_on='ip', right_on='dest', how='right').rename(
-        columns={'host': 'dest_host', 'site': 'dest_site'}).drop(columns='ip')
+    aggBySrcDest = pd.merge(df[['src', 'src_site', 'src_host']].drop_duplicates(), aggBySrcDest, on='src', how='right')
+    aggBySrcDest = pd.merge(df[['dest', 'dest_site', 'dest_host']].drop_duplicates(), aggBySrcDest, on='dest', how='right')
+
 
     # grab src-dest pairs which never reached the destination
     zeroGroups = aggBySrcDest[aggBySrcDest['destination_reached sum'] == 0].reset_index(drop=True)
 
     # remove rows with empty values
-    zeroGroups = zeroGroups[~(zeroGroups['src_host'].isnull()) & ~
-                            (zeroGroups['dest_host'].isnull())]
+    zeroGroups = zeroGroups[~(zeroGroups['src_host'].isnull()) & ~(zeroGroups['dest_host'].isnull())]
     # count the number of never reached WRT one end only
-    zeroGroupsCnt = zeroGroups.groupby(f'{start}_host')[[f'{end}_host']].count().rename(
-        columns={f'{end}_host': 'cnt_other_end'})
+    zeroGroupsCnt = zeroGroups.groupby(f'{start}_host')[[f'{end}_host']].count().rename(columns={f'{end}_host': 'cnt_other_end'})
     # get the ones passing the threshold, i.e. hosts that cannot be reached from (or cannot reach) more than 20 hosts
     moreThanTwentyEnds = zeroGroupsCnt[zeroGroupsCnt['cnt_other_end'] > threshold]
     # add sites and hosts
-    moreThanTwentyEnds = pd.merge(metaDf[['site', 'host']], moreThanTwentyEnds, left_on='host',
-                                  right_on=f'{start}_host', how='right').rename(columns={'site': f'{start}_site'}).drop_duplicates()
+    moreThanTwentyEnds = pd.merge(df[[f'{start}_site', f'{start}_host']].drop_duplicates(), moreThanTwentyEnds, on=f'{start}_host', how='right').drop_duplicates()
 
     # drop the hosts already reported as never reached (or the ones the cannot reach any host)
     reportHosts = [h for h in list(moreThanTwentyEnds['host'].unique()) if h not in nrHosts]
@@ -175,12 +165,14 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, metaDf, alarm, alarmT
     reportSites = zeroGroups[zeroGroups[f'{start}_host'].isin(reportHosts)].groupby(
         [f'{start}_site', f'{start}_host'])[f'{end}_site'].apply(list).to_frame().reset_index()
 #     display(reportSites)
-
+    
+    print(alarmType)
+    print()
+    print()
     # loop over the sites and create an alarm for each on the list
     for site, group in reportSites.groupby(f'{start}_site'):
         slist = [x for x in list(set().union(*group[f'{end}_site'])) if x is not None]
-        totalNumSites = len(aggBySrcDest[aggBySrcDest[f'{start}_host'].isin(
-            group[f'{start}_host'].values)][f'{end}_site'].drop_duplicates())
+        totalNumSites = len(aggBySrcDest[aggBySrcDest[f'{start}_host'].isin(group[f'{start}_host'].values)][f'{end}_site'].drop_duplicates())
 
         hosts = group[f'{start}_host'].values
 #         print(f"cannot be reached from {len(slist)} out of {totalNumSites} sites")
@@ -190,10 +182,28 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, metaDf, alarm, alarmT
             'cannotBeReachedFrom': sorted(slist, key=str.casefold),
             'totalNumSites': totalNumSites
         }
-#         print(doc)
-#         print()
+        # print(doc)
+        # print()
 
         alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
+
+
+
+# Fill in hosts and site names where missing by quering the ps_alarms_meta index
+def fixMissingMetadata(rawDf):
+    metaDf = qrs.getMetaData()
+    rawDf['pair'] = rawDf['src']+rawDf['dest']
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
+                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
+                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
+
+    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
+    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
+    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
+    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+
+    return rawDf
 
 
 dateFrom, dateTo = hp.defaultTimeRange(24)
@@ -202,14 +212,7 @@ run(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
 
 # get all necessary data for the nodes and fill it in the raw data from ps_trace in order to repair missing information
-metaDf = NodesMetaData('ps_trace', dateFrom, dateTo).df
-rawDf = pd.DataFrame(list(data))
-df = rawDf[~(rawDf['src'].isnull()) & (rawDf['src'] != '') & ~
-           (rawDf['dest'].isnull()) & (rawDf['dest'] != '')]
-df = pd.merge(metaDf[['ip', 'site', 'host', 'is_ipv6']], df, left_on='ip', right_on='src',
-              how='right').rename(columns={'site': 'src_site', 'host': 'src_host'}).drop(columns=['ip'])
-df = pd.merge(metaDf[['ip', 'site', 'host']], df, left_on='ip', right_on='dest', how='right').rename(
-    columns={'site': 'dest_site', 'host': 'dest_host'}).drop(columns=['ip'])
+df = fixMissingMetadata(df)
 df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df['dest'] != '')]
 
 # create the alarm types
@@ -220,12 +223,12 @@ alarmDestCantBeReachedFromMulty = alarms(
     'Networking', 'Sites', "destination cannot be reached from multiple")
 
 # send alarms
-DestHostsCantBeReachedFromAny = findAllDestinationsNeverReached(start='dest', df=df,
+DestHostsCantBeReachedFromAny = findConstantIssuesOnOneEnd(start='dest', df=df,
                                                                 alarm=alarmDestHostsCantBeReachedFromAny,
                                                                 alarmType="destination cannot be reached from any")
 
 
-SrcHostsCantReachAny = findAllDestinationsNeverReached(start='src',
+SrcHostsCantReachAny = findConstantIssuesOnOneEnd(start='src',
                                                        df=df,
                                                        alarm=alarmSrcHostsCantReachAny,
                                                        alarmType="source cannot reach any")
@@ -234,7 +237,6 @@ issuesWithMultipleSites(start='dest',
                         threshold=20,
                         nrHosts=DestHostsCantBeReachedFromAny,
                         df=df,
-                        metaDf=metaDf,
                         alarm=alarmDestCantBeReachedFromMulty,
                         alarmType="destination cannot be reached from multiple")
 # issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)

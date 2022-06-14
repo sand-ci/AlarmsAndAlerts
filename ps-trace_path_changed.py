@@ -7,14 +7,13 @@ import requests
 import collections
 
 import utils.helpers as hp
+import utils.queries as qrs
 from utils.helpers import timer
 from alarms import alarms
 
 
 # Builds the trceroute query
 def queryPSTrace(dt):
-    include = ["timestamp", "src", "dest", "asns", "src_host", "dest_host",
-               "src_site", "dest_site", 'hops', 'ttls', 'destination_reached']
     query = {
         "query": {
             "bool": {
@@ -45,9 +44,8 @@ def scan_gen(scan):
         except:
             break
 
+
 # gets the data from ES
-
-
 def ps_trace(dt):
     scan_gen = queryPSTrace(dt)
     items = []
@@ -62,17 +60,15 @@ def ps_trace(dt):
 manager = Manager()
 data = manager.list()
 
+
 # queries in chunks based on time ranges
-
-
 def getTraceData(dtRange):
     traceData = ps_trace(dtRange)
     if len(traceData) > 0:
         data.extend(traceData)
 
+
 # laods the data in parallel
-
-
 @timer
 def runInParallel(dateFrom, dateTo):
     # query the past 12 hours and split the period into 8 time ranges
@@ -575,6 +571,23 @@ def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
     return alarmsList
 
 
+# Fill in hosts and site names where missing by quering the ps_alarms_meta index
+@timer
+def fixMissingMetadata(rawDf):
+    metaDf = qrs.getMetaData()
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
+                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
+                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
+
+    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
+    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
+    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
+    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+
+    return rawDf
+
+
 # Grabs the R&E ASNs and their owners from ES
 @timer
 def getASNInfo(ids):
@@ -616,8 +629,7 @@ runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
 df['pair'] = df['src']+'-'+df['dest']
 
-# TODO
-# df = metaLookUpFix(df)
+df = fixMissingMetadata(df)
 asn2Hop, hop2ASN, max_ttl = mapHopsAndASNs(df)
 
 cricDict = getCricASNInfo()
@@ -635,6 +647,8 @@ pathDf = getStats4Paths(relDf, df)
 # remove rows where site is None and ignore those with 100% stable paths
 valid = pathDf[~(pathDf['src_site'].isnull()) & ~(
     pathDf['dest_site'].isnull()) & (pathDf['hash_freq'] < 1)].copy()
+if len(valid) == 0:
+    raise NameError('No valid paths. Check pathDf.')
 baseLine, compare2 = getBaseline(valid)
 
 # get a second stable path (baseline) for the T1 sites

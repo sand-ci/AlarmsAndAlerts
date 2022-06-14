@@ -11,6 +11,16 @@ valueField = {
             }
 
 
+def getMetaData():
+    meta = []
+    data = scan(hp.es, index='ps_alarms_meta')
+    for item in data:
+        meta.append(item['_source'])
+
+    if meta:
+        return pd.DataFrame(meta)
+
+
 def allTestedNodes(period):
     def query(direction):
         query = {
@@ -280,7 +290,7 @@ def query4Avg(idx, dateFrom, dateTo):
 
     aggdata = hp.es.search(index=idx, body=query)
     for item in aggdata['aggregations']['groupby']['buckets']:
-        aggrs.append({'hash': str(item['key']['src']+'-'+item['key']['dest']),
+        aggrs.append({'pair': str(item['key']['src']+'-'+item['key']['dest']),
                       'from':dateFrom, 'to':dateTo,
                       'src': item['key']['src'], 'dest': item['key']['dest'],
                       'src_host': item['key']['src_host'], 'dest_host': item['key']['dest_host'],

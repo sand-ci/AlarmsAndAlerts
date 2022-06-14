@@ -1,21 +1,15 @@
-import threading
-import time
 import datetime
 import pandas as pd
-from functools import reduce, wraps
 from datetime import datetime, timedelta
-import numpy as np
-from  scipy.stats import zscore
 
 import utils.queries as qrs
 import utils.helpers as hp
-from data_objects.NodesMetaData import NodesMetaData
 
 from alarms import alarms
 
 
 
-def query4Avg(idx, dateFrom, dateTo):
+def query4Avg(dateFrom, dateTo):
     query = {
               "size" : 0,
               "query" : {
@@ -113,7 +107,7 @@ def query4Avg(idx, dateFrom, dateTo):
 #     print(idx, str(query).replace("\'", "\""))
     aggrs = []
 
-    aggdata = hp.es.search(index=idx, body=query)
+    aggdata = hp.es.search(index='ps_throughput', body=query)
     for item in aggdata['aggregations']['groupby']['buckets']:
         aggrs.append({'hash': str(item['key']['src']+'-'+item['key']['dest']),
                       'from':dateFrom, 'to':dateTo,
@@ -128,43 +122,45 @@ def query4Avg(idx, dateFrom, dateTo):
     return aggrs
 
 
+# Fill in hosts and site names where missing by quering the ps_alarms_meta index
+def fixMissingMetadata(rawDf):
+    metaDf = qrs.getMetaData()
+    rawDf['pair'] = rawDf['src']+rawDf['dest']
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
+                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
+                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
+
+    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
+    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
+    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
+    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+
+    return rawDf
 
 
-def fixMissingMetadata(rawDf, idx):
-    metadf = NodesMetaData(idx, dateFrom, dateTo).df
-    df1 = pd.merge(metadf[['host', 'ip', 'site']], rowDf[[
-                   'src', 'hash']], left_on='ip', right_on='src', how='right')
-    df2 = pd.merge(metadf[['host', 'ip', 'site']], rowDf[[
-                   'dest', 'hash']], left_on='ip', right_on='dest', how='right')
-    df = pd.merge(df1, df2, on=['hash'], suffixes=(
-        '_src', '_dest'), how='inner')
-    df = df[df.duplicated(subset=['hash']) == False]
-
-    df = df.drop(columns=['ip_src', 'ip_dest'])
-    df = pd.merge(rowDf, df, on=['hash', 'src', 'dest'], how='left')
-    
-    return df.rename(columns={'site_src': 'src_site', 'site_dest': 'dest_site'})
-
-
-def queryData(idx, dateFrom, dateTo):
+def queryData(dateFrom, dateTo):
     data = []
     # query in portions since ES does not allow aggregations with more than 10000 bins
     intv = int(hp.CalcMinutes4Period(dateFrom, dateTo)/60)
     time_list = hp.GetTimeRanges(dateFrom, dateTo, intv)
     for i in range(len(time_list)-1):
-        data.extend(query4Avg(idx, time_list[i], time_list[i+1]))
+        data.extend(query4Avg(time_list[i], time_list[i+1]))
 
     return data
 
 
 def getStats(df, threshold):
-#     metaDf = fixMissingMetadata(df, 'ps_throughput')
-    metaDf = df.copy()
+    print('------',len(df), len(df[(df['src_site'].isnull()) | (df['dest_site'].isnull())]))
+    df = fixMissingMetadata(df)
+    print('------',len(df),len(df[(df['src_site'].isnull()) | (df['dest_site'].isnull())]))
+
+    # metaDf = df.copy()
     # convert to MB
-    metaDf['value'] = round(metaDf['value']*1e-6)
+    df['value'] = round(df['value']*1e-6)
     
     # split the data in 3 days
-    sitesDf = metaDf.groupby(['src_site', 'dest_site','ipv', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
+    sitesDf = df.groupby(['src_site', 'dest_site','ipv', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
     
     # get the statistics
     sitesDf['z'] = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: round((x - x.mean())/x.std(),2))
@@ -215,6 +211,8 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
         doc = {'ipv':ipvString, 'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
         doc['site'] = site
 
+        # print(site)
+        # print(doc)
         # send the alarm with the proper message
         alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
         rows2Delete.extend(subset.index.values)
@@ -224,6 +222,8 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
 
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change']].to_dict('records'):
+        # print(doc['src_site'], doc['dest_site'])
+        # print(doc)
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
@@ -231,7 +231,7 @@ dateTo = datetime.strftime(now, '%Y-%m-%d %H:%M')
 dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%d %H:%M')
 
 # get the data
-rawDf = pd.DataFrame(queryData('ps_throughput', dateFrom, dateTo))
+rawDf = pd.DataFrame(queryData(dateFrom, dateTo))
 rawDf['dt'] = pd.to_datetime(rawDf['from'], unit='ms')
 
 booleanDictionary = {True: 'ipv6', False: 'ipv4'}
