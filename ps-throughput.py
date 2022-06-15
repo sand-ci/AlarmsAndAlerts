@@ -151,11 +151,7 @@ def queryData(dateFrom, dateTo):
 
 
 def getStats(df, threshold):
-    print('------',len(df), len(df[(df['src_site'].isnull()) | (df['dest_site'].isnull())]))
     df = fixMissingMetadata(df)
-    print('------',len(df),len(df[(df['src_site'].isnull()) | (df['dest_site'].isnull())]))
-
-    # metaDf = df.copy()
     # convert to MB
     df['value'] = round(df['value']*1e-6)
     
@@ -199,6 +195,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
         subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
         # build the lists of values
         src_sites, dest_sites, src_change, dest_change = [],[],[],[]
+
         for idx, row in subset.iterrows():
             if row['src_site'] != site:
                 src_sites.append(row['src_site'])
@@ -207,23 +204,24 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
                 dest_sites.append(row['dest_site'])
                 dest_change.append(row['%change'])
 
-        # create the alarm source content
-        doc = {'ipv':ipvString, 'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
-        doc['site'] = site
+        all_vals = src_change + dest_change
+        print(all_vals, src_change, dest_change)
+        above50 = [c for c in all_vals if abs(c)>=50]
 
-        # print(site)
-        # print(doc)
-        # send the alarm with the proper message
-        alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
-        rows2Delete.extend(subset.index.values)
+        if len(above50)>=minCount:
+            # create the alarm source content
+            doc = {'ipv':ipvString, 'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
+            doc['site'] = site
+
+            # send the alarm with the proper message
+            alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
+            rows2Delete.extend(subset.index.values)
 
     # delete the rows for which alarms were created
     alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change']].to_dict('records'):
-        # print(doc['src_site'], doc['dest_site'])
-        # print(doc)
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
@@ -241,6 +239,6 @@ rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 statsDf = getStats(rawDf, 2)
 
 # Bandwidth decreased
-createAlarms(statsDf[(statsDf['z']<=-1.9)], 'bandwidth decreased')
+createAlarms(statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
 # Bandwidth recovery
-createAlarms(statsDf[(statsDf['z']>=1.9)], 'bandwidth increased')
+createAlarms(statsDf[(statsDf['z']>=2)], 'bandwidth increased')
