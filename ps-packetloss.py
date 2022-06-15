@@ -94,7 +94,7 @@ def fixMissingMetadata(rawDf):
                                     that there should be 1 measure per minute
 """
 
-dateFrom, dateTo = hp.defaultTimeRange(hours=3)
+dateFrom, dateTo = hp.defaultTimeRange(hours=24)
 plsDf = markPairs(dateFrom, dateTo)
 cols = ['src', 'dest', 'src_host', 'dest_host',
         'src_site', 'dest_site', 'avg_value', 'tests_done']
