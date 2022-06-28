@@ -175,7 +175,7 @@ def getStats(df, threshold):
     return sitesDf[((sitesDf['z']<=-threshold)|(sitesDf['z']>=threshold))&(sitesDf['dt']==last3days)].rename(columns={'value':'last3days_avg'}).round(2)
 
 
-def createAlarms(alarmsDf, alarmType, minCount=5):
+def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
     src_cnt = alarmsDf[['src_site','ipv']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
@@ -205,12 +205,13 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
                 dest_change.append(row['%change'])
 
         all_vals = src_change + dest_change
-        print(all_vals, src_change, dest_change)
         above50 = [c for c in all_vals if abs(c)>=50]
 
         if len(above50)>=minCount:
             # create the alarm source content
-            doc = {'ipv':ipvString, 'dest_sites':dest_sites, 'dest_change':dest_change, 'src_sites':src_sites, 'src_change':src_change}
+            doc = {'from': dateFromF, 'to': dateToF, 'ipv':ipvString, 
+                   'dest_sites':dest_sites, 'dest_change':dest_change, 
+                   'src_sites':src_sites, 'src_change':src_change}
             doc['site'] = site
 
             # send the alarm with the proper message
@@ -221,7 +222,7 @@ def createAlarms(alarmsDf, alarmType, minCount=5):
     alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
-    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change']].to_dict('records'):
+    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change', 'from', 'to']].to_dict('records'):
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
@@ -237,8 +238,11 @@ rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 
 # calculate the statistics
 statsDf = getStats(rawDf, 2)
+dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
+statsDf['from'] = dateFromF
+statsDf['to'] = dateToF
 
 # Bandwidth decreased
-createAlarms(statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
+createAlarms(dateFromF, dateToF, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
 # Bandwidth recovery
-createAlarms(statsDf[(statsDf['z']>=2)], 'bandwidth increased')
+createAlarms(dateFromF, dateToF, statsDf[(statsDf['z']>=2)], 'bandwidth increased')
