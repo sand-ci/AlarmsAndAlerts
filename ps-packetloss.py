@@ -97,6 +97,7 @@ def fixMissingMetadata(rawDf):
 dateFrom, dateTo = hp.defaultTimeRange(hours=24)
 dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
 plsDf = markPairs(dateFrom, dateTo)
+plsDf = plsDf[plsDf['tests_done']!='0%']
 plsDf['from'] = dateFromF
 plsDf['to'] = dateToF
 cols = ['from', 'to', 'src', 'dest', 'src_host', 'dest_host',
