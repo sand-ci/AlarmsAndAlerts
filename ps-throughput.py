@@ -156,7 +156,7 @@ def getStats(df, threshold):
     df['value'] = round(df['value']*1e-6)
     
     # split the data in 3 days
-    sitesDf = df.groupby(['src_site', 'dest_site','ipv', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
+    sitesDf = df.groupby(['src_site', 'dest_site', 'ipv', 'ipv6', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
     
     # get the statistics
     sitesDf['z'] = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: round((x - x.mean())/x.std(),2))
@@ -178,9 +178,9 @@ def getStats(df, threshold):
 def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
-    src_cnt = alarmsDf[['src_site','ipv']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
-    dest_cnt = alarmsDf[['dest_site','ipv']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
-    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv']).sum().reset_index()
+    src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
+    dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
+    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv', 'ipv6']).sum().reset_index()
 
     # create the alarm objects
     alarmOnPair = alarms('Networking', 'Sites', alarmType)
@@ -190,7 +190,7 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
 
 
 
-    for site, ipvString in cntDf[cntDf['cnt']>=minCount][['site','ipv']].values:
+    for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
 
         subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
         # build the lists of values
@@ -209,7 +209,7 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
 
         if len(above50)>=minCount:
             # create the alarm source content
-            doc = {'from': dateFromF, 'to': dateToF, 'ipv':ipvString, 
+            doc = {'from': dateFromF, 'to': dateToF, 'ipv':ipvString, 'ipv6':ipv6,
                    'dest_sites':dest_sites, 'dest_change':dest_change, 
                    'src_sites':src_sites, 'src_change':src_change}
             doc['site'] = site
@@ -222,7 +222,8 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
     alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
-    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'last3days_avg', '%change', 'from', 'to']].to_dict('records'):
+    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'ipv6',
+                                                                               'last3days_avg', '%change', 'from', 'to']].to_dict('records'):
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
