@@ -109,7 +109,7 @@ def allTestedNodes(period):
 
         pairsDf = pd.concat([pairsDf, pd.DataFrame(aggrs)])
         pairsDf = pairsDf.drop_duplicates()
-        print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
+        # print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
     return pairsDf
 
 
