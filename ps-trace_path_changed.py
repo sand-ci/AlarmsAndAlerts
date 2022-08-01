@@ -1,4 +1,4 @@
-from elasticsearch.helpers import scan
+from elasticsearch.helpers import scan, parallel_bulk
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager
 import pandas as pd
@@ -481,7 +481,7 @@ def positionASNsUsingTTLs(pairs, relDf, max_ttl):
             missing = {x: -1 for x in range(ttls[0], ttls[-1]+1) if x not in ttls}
             posDf.loc[idx, list(missing.keys())] = list(missing.values())
             posDf.loc[idx, 'pair'] = pair
-
+            
     return posDf
 
 
@@ -580,11 +580,15 @@ def fixMissingMetadata(rawDf):
     rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
                 columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
 
-    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
-    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
-    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
-    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+    rawDf['site_src'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
+    rawDf['site_dest'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
+    rawDf['host_src'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
+    rawDf['host_dest'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
 
+    rawDf.rename(columns={'host_src':'src_host','site_src':'src_site',
+                          'host_dest':'dest_host','site_dest':'dest_site'}, inplace=True)
+    
+    rawDf = rawDf[(rawDf['src_site']!='')&(rawDf['dest_site']!='')]
     return rawDf
 
 
@@ -608,6 +612,47 @@ def getASNInfo(ids):
 
     return asnDict
 
+@timer
+def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
+    def getPaths(fld, ddf):
+        temp = {}
+        if len(ddf)>0:
+            temp[fld] = ddf[['asns_updated','cnt_total_measures','all_dests_reached','hash_freq']].to_dict('records')
+        return temp
+    
+    probDf = probDf.round(2)
+    baseLine = baseLine.round(2)
+    updatedbaseLine = updatedbaseLine.round(2)
+    compare2 = compare2.round(2)
+
+    alarmsData = []
+    for pair, diff in diffs.items():
+        temp = {}
+        # prepare the data for ES - adding _id and _index to send in bulk
+        temp['from_date'] = dateFrom
+        temp['to_date'] = dateTo
+        temp['_index'] = 'ps_trace_changes'
+        temp['diff'] = diff
+        temp.update(baseLine[baseLine['pair']==pair][['src','dest','src_host', 'dest_host', 'src_site', 'dest_site']].to_dict('records')[0])
+
+        temp.update(getPaths('baseline', baseLine[baseLine['pair']==pair]))
+        temp.update(getPaths('second_baseline', updatedbaseLine[updatedbaseLine['pair']==pair]))
+        temp.update(getPaths('alt_paths', compare2[compare2['pair']==pair]))
+        temp['positions'] = probDf[probDf['pair']==pair][['asn','pos','P']].round(2).to_dict('records')
+        
+        alarmsData.append(temp)
+
+
+    print(f'Number of docs: {len(alarmsData)}')
+
+    def genData(data):
+        for d in data:
+            yield d
+
+
+    for success, info in parallel_bulk(hp.es, genData(alarmsData)):
+        if not success:
+            print('A document failed:', info)
 
 # Sends the alarms
 @timer
@@ -677,6 +722,8 @@ probDf = getProbabilities(posDf, max_ttl)
 baseLine = addOnAndOffNodes(diffs, probDf, baseLine)
 # Again get the pairs which took different form the usual paths
 diffs = getChanged(baseLine, compare2, updatedbaseLine, altsOfAlts, cricDict)
+
+saveStats(diffs, df, probDf, baseLine, updatedbaseLine, compare2)
 
 # Extract all seen ASNs
 asns = list(set([str(item) for l in diffs.values() for item in l]))
