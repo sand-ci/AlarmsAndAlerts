@@ -25,6 +25,13 @@ def allTestedNodes(period):
     def query(direction):
         query = {
           "size" : 0,
+          "sort": [
+            {
+              "timestamp": {
+                "order": "desc"
+              }
+            }
+          ],
           "query" : {
             "bool" : {
               "must" : [
