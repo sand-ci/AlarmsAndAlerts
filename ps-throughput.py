@@ -1,6 +1,7 @@
 import datetime
 import pandas as pd
 from datetime import datetime, timedelta
+import hashlib
 
 import utils.queries as qrs
 import utils.helpers as hp
@@ -11,32 +12,31 @@ from alarms import alarms
 
 def query4Avg(dateFrom, dateTo):
     query = {
-              "size" : 0,
-              "query" : {
-                "bool" : {
-                  "must" : [
-                    {
-                      "range" : {
-                        "timestamp" : {
-                          "gt" : dateFrom,
-                          "lte": dateTo
-                        }
-                      }
-                    },
-                    {
-                      "term" : {
-                        "src_production" : True
-                      }
-                    },
-                    {
-                      "term" : {
-                        "dest_production" : True
-                      }
+            "bool" : {
+              "must" : [
+                {
+                  "range" : {
+                    "timestamp" : {
+                      "gt" : dateFrom,
+                      "lte": dateTo
                     }
-                  ]
+                  }
+                },
+                {
+                  "term" : {
+                    "src_production" : True
+                  }
+                },
+                {
+                  "term" : {
+                    "dest_production" : True
+                  }
                 }
-              },
-              "aggregations" : {
+              ]
+            }
+          }
+              
+    aggregations = {
                 "groupby" : {
                   "composite" : {
                     "size" : 9999,
@@ -101,13 +101,13 @@ def query4Avg(dateFrom, dateTo):
                   }
                 }
               }
-            }
+            
 
 
 #     print(idx, str(query).replace("\'", "\""))
     aggrs = []
 
-    aggdata = hp.es.search(index='ps_throughput', body=query)
+    aggdata = hp.es.search(index='ps_throughput', query=query, aggregations=aggregations)
     for item in aggdata['aggregations']['groupby']['buckets']:
         aggrs.append({'hash': str(item['key']['src']+'-'+item['key']['dest']),
                       'from':dateFrom, 'to':dateTo,
@@ -213,7 +213,9 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
                    'dest_sites':dest_sites, 'dest_change':dest_change, 
                    'src_sites':src_sites, 'src_change':src_change}
             doc['site'] = site
-
+            
+            toHash = ','.join([site, str(ipv6), dateFrom, dateTo])
+            doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
             # send the alarm with the proper message
             alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
             rows2Delete.extend(subset.index.values)
@@ -224,6 +226,8 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
     # The rest will be send as 'regular' src-dest alarms
     for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'ipv6',
                                                                                'last3days_avg', '%change', 'from', 'to']].to_dict('records'):
+        toHash = ','.join([doc['src_site'], doc['dest_site'], doc['ipv'], dateFrom, dateTo])
+        doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
