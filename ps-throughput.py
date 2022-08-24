@@ -243,9 +243,9 @@ rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 
 # calculate the statistics
 statsDf = getStats(rawDf, 2)
-dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
-statsDf['from'] = dateFromF
-statsDf['to'] = dateToF
+statsDf = getStats(rawDf, 2)
+statsDf['from'] = dateFrom
+statsDf['to'] = dateTo
 
 # Bandwidth decreased
 createAlarms(dateFromF, dateToF, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
