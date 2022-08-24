@@ -248,6 +248,6 @@ statsDf['from'] = dateFrom
 statsDf['to'] = dateTo
 
 # Bandwidth decreased
-createAlarms(dateFromF, dateToF, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
+createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
 # Bandwidth recovery
-createAlarms(dateFromF, dateToF, statsDf[(statsDf['z']>=2)], 'bandwidth increased')
+createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']>=2)], 'bandwidth increased')
