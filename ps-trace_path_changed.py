@@ -307,7 +307,7 @@ def getStats4Paths(relDf, df):
             if len(group.asns_updated.values) > 1:
                 for i, g in enumerate(group.asns_updated.values):
                     if g is not None and g == g:
-                        asnList = list(set(g.copy()))
+                        asnList = list(dict.fromkeys(g.copy()))
 
                     if 0 in asnList:
                         asnList.remove(0)
