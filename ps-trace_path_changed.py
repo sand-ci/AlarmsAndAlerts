@@ -72,11 +72,11 @@ def getTraceData(dtRange):
 # laods the data in parallel
 @timer
 def runInParallel(dateFrom, dateTo):
-    # query the past 12 hours and split the period into 8 time ranges
+    # query the past 12 hours and split the period into 24 time ranges
     # dateFrom, dateTo = hp.defaultTimeRange(12)
     # dateFrom, dateTo = ['2022-05-17 20:15', '2022-05-18 08:15']
     print(f' Run for period: {dateFrom}  -   {dateTo}')
-    dtList = hp.GetTimeRanges(dateFrom, dateTo, 12)
+    dtList = hp.GetTimeRanges(dateFrom, dateTo, 24)
     with ProcessPoolExecutor(max_workers=4) as pool:
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
@@ -667,7 +667,7 @@ def sendAlarms(data):
         )
 
 
-# query the past 24 hours and split the period into 8 time ranges
+# query the past 24 hours and split the period into 24 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(24)
 # dateFrom, dateTo = ['2022-05-25 09:40', '2022-05-25 21:40']
 runInParallel(dateFrom, dateTo)
