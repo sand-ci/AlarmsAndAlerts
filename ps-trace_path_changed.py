@@ -667,8 +667,8 @@ def sendAlarms(data):
         )
 
 
-# query the past 12 hours and split the period into 8 time ranges
-dateFrom, dateTo = hp.defaultTimeRange(12)
+# query the past 24 hours and split the period into 8 time ranges
+dateFrom, dateTo = hp.defaultTimeRange(24)
 # dateFrom, dateTo = ['2022-05-25 09:40', '2022-05-25 21:40']
 runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
@@ -704,8 +704,8 @@ updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
 
 # Ignore sites for which we know there's an issue
-ignore_list = ['ATLAS-CBPF', 'NCP-LCG2', 'UTA_SWT2', 'RRC_KI', 'CBPF', 'IN2P3-CC', 'JINR-LCG2',
-               'JINR-T1', 'RRC-KI-T1', 'RRC-KI', 'ITEP', 'RU-Protvino-IHEP', 'BEIJING-LCG2']
+T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
+      'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
 cut = compare2[(~compare2['src_site'].isin(ignore_list)) & (~compare2['dest_site'].isin(ignore_list))]
 
 # Get the pairs which took different form the usual paths
