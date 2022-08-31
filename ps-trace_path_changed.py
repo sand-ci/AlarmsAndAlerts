@@ -1,5 +1,6 @@
 from elasticsearch.helpers import scan, parallel_bulk
 from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 from multiprocessing import Manager
 import pandas as pd
 import json
@@ -72,12 +73,12 @@ def getTraceData(dtRange):
 # laods the data in parallel
 @timer
 def runInParallel(dateFrom, dateTo):
-    # query the past 12 hours and split the period into 24 time ranges
+    # query the past 12 hours and split the period into 8 time ranges
     # dateFrom, dateTo = hp.defaultTimeRange(12)
     # dateFrom, dateTo = ['2022-05-17 20:15', '2022-05-18 08:15']
     print(f' Run for period: {dateFrom}  -   {dateTo}')
     dtList = hp.GetTimeRanges(dateFrom, dateTo, 24)
-    with ProcessPoolExecutor(max_workers=4) as pool:
+    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as pool:
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
 
@@ -667,22 +668,20 @@ def sendAlarms(data):
         )
 
 
-# query the past 24 hours and split the period into 24 time ranges
+# query the past 12 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(24)
 # dateFrom, dateTo = ['2022-05-25 09:40', '2022-05-25 21:40']
 runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
 df['pair'] = df['src']+'-'+df['dest']
 
-df = fixMissingMetadata(df)
+# df = fixMissingMetadata(df)
 asn2Hop, hop2ASN, max_ttl = mapHopsAndASNs(df)
 
 cricDict = getCricASNInfo()
 altASNsDict = getAltASNs(asn2Hop, hop2ASN)
 altsOfAlts = getAltsOfAlts(altASNsDict)
 
-mapASNsManualy(513, 20969)
-mapASNsManualy(20969, 513)
 mapASNsManualy(291, 293)
 mapASNsManualy(293, 291)
 
@@ -690,15 +689,16 @@ relDf = fix0ASNs(df)
 pathDf = getStats4Paths(relDf, df)
 
 # remove rows where site is None and ignore those with 100% stable paths
-valid = pathDf[~(pathDf['src_site'].isnull()) & ~(
-    pathDf['dest_site'].isnull()) & (pathDf['hash_freq'] < 1)].copy()
+valid = pathDf[~(pathDf['src_site'].isnull()) & ~(pathDf['dest_site'].isnull()) & (pathDf['hash_freq'] < 1)].copy()
 if len(valid) == 0:
     raise NameError('No valid paths. Check pathDf.')
 baseLine, compare2 = getBaseline(valid)
 
 # get a second stable path (baseline) for the T1 sites
-T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
-      'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
+# T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
+#       'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
+# limit temporarily to the known site having load balancing
+T1 = ['PIC','pic']
 t1s = compare2[(compare2['src_site'].isin(T1)) & (compare2['dest_site'].isin(T1))]
 updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
