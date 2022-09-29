@@ -38,6 +38,7 @@ def getPercentageMeasuresDone(grouped, tempdf):
 
 @timer
 def markPairs(dateFrom, dateTo):
+    df = pd.DataFrame()
 
     tempdf = loadPacketLossData(dateFrom, dateTo)
     grouped = tempdf.groupby(['src', 'dest', 'pair', 'src_host', 'dest_host', 'src_site', 'dest_site']).agg(
@@ -62,7 +63,7 @@ def markPairs(dateFrom, dateTo):
 
     grouped['flag'] = grouped['value'].apply(lambda val: setFlag(val))
 
-    df = grouped
+    df = df.append(grouped, ignore_index=True)
     df.rename(columns={'value': 'avg_value'}, inplace=True)
     df = df.round({'avg_value': 3})
 
@@ -97,8 +98,8 @@ dateFrom, dateTo = hp.defaultTimeRange(hours=24)
 dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
 plsDf = markPairs(dateFrom, dateTo)
 plsDf = plsDf[plsDf['tests_done']!='0%']
-plsDf.insert(0, 'from', dateFromF)
-plsDf.insert(0, 'to', dateToF)
+plsDf['from'] = dateFromF
+plsDf['to'] = dateToF
 cols = ['from', 'to', 'src', 'dest', 'src_host', 'dest_host',
         'src_site', 'dest_site', 'avg_value', 'tests_done']
 
@@ -114,7 +115,7 @@ for host in list(set(sign_ploss['src_host'].to_list())):
     site = sign_ploss[(sign_ploss['src_host']==host)]['src_site'].values[0]
     dest_sites = sign_ploss[sign_ploss['src_host']==host]['dest_site'].values.tolist()
     loss = sign_ploss[sign_ploss['src_host']==host]['avg_value%'].values.tolist()
-    data[host] = {"site":site, "host":host, "from": dateFrom, "to": dateTo,
+    data[host] = {"site":site, "host":host, "from": dateFromF, "to": dateToF,
                   "dest_sites":dest_sites, "dest_loss":loss, "src_sites":[], "src_loss":[]}
 
 for host in list(set(sign_ploss['dest_host'].to_list())):

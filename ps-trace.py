@@ -110,7 +110,7 @@ def run(dateFrom, dateTo):
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
 
-def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFrom, dateTo):
+def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFromF, dateToF):
     end = 'dest' if start == 'src' else 'src'
 
     issuesDf = df.groupby(f'{start}_host').agg({'destination_reached': ['sum', 'count'], f'{end}_host': 'nunique'}).reset_index()
@@ -125,21 +125,20 @@ def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFrom, dateTo):
         hosts = group[f'{start}_host'].values
         nrHosts.extend(hosts)
         doc = {
-            'dateFrom': dateFrom, 
-            'dateTo': dateTo,
+            'from': dateFromF, 
+            'to': dateToF,
             'hosts': list(hosts),
             'site': site,
             'num_hosts_other_end': int(nr[nr[f'{start}_site'] == site][f'{end}_host nunique'].sum())
         }
         # print(doc)
         # print()
-        if site != '':
-            alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
+        alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
 
     return nrHosts
 
 
-def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dateFrom, dateTo):
+def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dateFromF, dateToF):
     end = 'dest' if start == 'src' else 'src'
     # get the unique src-dest combinations and sum the destination_reached in order
     # to find all pairs that never reached the destinarion
@@ -177,16 +176,16 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dat
         hosts = group[f'{start}_host'].values
 #         print(f"cannot be reached from {len(slist)} out of {totalNumSites} sites")
         doc = {
-            'from': dateFrom, 
-            'to': dateTo,
+            'from': dateFromF, 
+            'to': dateToF,
             'hosts': list(hosts),
             'site': site,
             'cannotBeReachedFrom': sorted(slist, key=str.casefold),
             'totalNumSites': totalNumSites
         }
 
-        if site != '':
-            alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
+    
+        alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
 
 
 
@@ -229,16 +228,16 @@ alarmDestCantBeReachedFromMulty = alarms(
 DestHostsCantBeReachedFromAny = findConstantIssuesOnOneEnd(start='dest', df=df,
                                                                 alarm=alarmDestHostsCantBeReachedFromAny,
                                                                 alarmType="destination cannot be reached from any",
-                                                                dateFrom=dateFrom, 
-                                                                dateTo=dateTo)
+                                                                dateFromF=dateFromF, 
+                                                                dateToF=dateToF)
 
 
 SrcHostsCantReachAny = findConstantIssuesOnOneEnd(start='src',
                                                        df=df,
                                                        alarm=alarmSrcHostsCantReachAny,
                                                        alarmType="source cannot reach any",
-                                                       dateFrom=dateFrom, 
-                                                       dateTo=dateTo)
+                                                       dateFromF=dateFromF, 
+                                                       dateToF=dateToF)
 
 issuesWithMultipleSites(start='dest',
                         threshold=20,
@@ -246,6 +245,6 @@ issuesWithMultipleSites(start='dest',
                         df=df,
                         alarm=alarmDestCantBeReachedFromMulty,
                         alarmType="destination cannot be reached from multiple",
-                        dateFrom=dateFrom,
-                        dateTo=dateTo)
+                        dateFromF=dateFromF,
+                        dateToF=dateToF)
 # issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
