@@ -175,7 +175,7 @@ def getStats(df, threshold):
     return sitesDf[((sitesDf['z']<=-threshold)|(sitesDf['z']>=threshold))&(sitesDf['dt']==last3days)].rename(columns={'value':'last3days_avg'}).round(2)
 
 
-def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
+def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
     src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
@@ -209,7 +209,7 @@ def createAlarms(dateFromF, dateToF, alarmsDf, alarmType, minCount=5):
 
         if len(above50)>=minCount:
             # create the alarm source content
-            doc = {'from': dateFromF, 'to': dateToF, 'ipv':ipvString, 'ipv6':ipv6,
+            doc = {'from': dateFrom, 'to': dateTo, 'ipv':ipvString, 'ipv6':ipv6,
                    'dest_sites':dest_sites, 'dest_change':dest_change, 
                    'src_sites':src_sites, 'src_change':src_change}
             doc['site'] = site

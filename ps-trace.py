@@ -110,7 +110,7 @@ def run(dateFrom, dateTo):
         result = pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)])
 
 
-def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFromF, dateToF):
+def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFrom, dateTo):
     end = 'dest' if start == 'src' else 'src'
 
     issuesDf = df.groupby(f'{start}_host').agg({'destination_reached': ['sum', 'count'], f'{end}_host': 'nunique'}).reset_index()
@@ -125,8 +125,8 @@ def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFromF, dateToF):
         hosts = group[f'{start}_host'].values
         nrHosts.extend(hosts)
         doc = {
-            'from': dateFromF, 
-            'to': dateToF,
+            'from': dateFrom, 
+            'to': dateTo,
             'hosts': list(hosts),
             'site': site,
             'num_hosts_other_end': int(nr[nr[f'{start}_site'] == site][f'{end}_host nunique'].sum())
@@ -138,7 +138,7 @@ def findConstantIssuesOnOneEnd(start, df, alarm, alarmType, dateFromF, dateToF):
     return nrHosts
 
 
-def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dateFromF, dateToF):
+def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dateFrom, dateTo):
     end = 'dest' if start == 'src' else 'src'
     # get the unique src-dest combinations and sum the destination_reached in order
     # to find all pairs that never reached the destinarion
@@ -176,8 +176,8 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dat
         hosts = group[f'{start}_host'].values
 #         print(f"cannot be reached from {len(slist)} out of {totalNumSites} sites")
         doc = {
-            'from': dateFromF, 
-            'to': dateToF,
+            'from': dateFrom, 
+            'to': dateTo,
             'hosts': list(hosts),
             'site': site,
             'cannotBeReachedFrom': sorted(slist, key=str.casefold),
@@ -228,16 +228,16 @@ alarmDestCantBeReachedFromMulty = alarms(
 DestHostsCantBeReachedFromAny = findConstantIssuesOnOneEnd(start='dest', df=df,
                                                                 alarm=alarmDestHostsCantBeReachedFromAny,
                                                                 alarmType="destination cannot be reached from any",
-                                                                dateFromF=dateFromF, 
-                                                                dateToF=dateToF)
+                                                                dateFrom=dateFrom, 
+                                                                dateTo=dateTo)
 
 
 SrcHostsCantReachAny = findConstantIssuesOnOneEnd(start='src',
                                                        df=df,
                                                        alarm=alarmSrcHostsCantReachAny,
                                                        alarmType="source cannot reach any",
-                                                       dateFromF=dateFromF, 
-                                                       dateToF=dateToF)
+                                                       dateFrom=dateFrom, 
+                                                       dateTo=dateToF)
 
 issuesWithMultipleSites(start='dest',
                         threshold=20,
@@ -245,6 +245,6 @@ issuesWithMultipleSites(start='dest',
                         df=df,
                         alarm=alarmDestCantBeReachedFromMulty,
                         alarmType="destination cannot be reached from multiple",
-                        dateFromF=dateFromF,
-                        dateToF=dateToF)
+                        dateFrom=dateFrom,
+                        dateTo=dateTo)
 # issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
