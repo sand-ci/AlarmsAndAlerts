@@ -127,7 +127,8 @@ for host in list(set(sign_ploss['dest_host'].to_list())):
         data[host]["src_sites"] = src_sites
         data[host]["src_loss"] = loss
     else: 
-        data[host] = {"site":site, "host":host, "dest_sites":[], "dest_loss":[], "src_sites":src_sites, "src_loss":loss}
+        data[host] = {"site":site, "host":host,  "from": dateFrom, "to": dateTo,
+                      "dest_sites":[], "dest_loss":[], "src_sites": src_sites, "src_loss":loss}
 
 
 # Create the alarm types
@@ -170,7 +171,7 @@ if len(destWhereCntGrTh10hosts)>0:
     for host in destWhereCntGrTh10hosts:
         site = complete_ploss[complete_ploss['dest_host']==host]['dest_site'].unique()[0]
         site_list = complete_ploss[complete_ploss['dest_host']==host]['src_site'].values.tolist()
-        data = {"site":site, "host":host, "sites":site_list}
+        data = {"site":site, "host":host, "sites":site_list, "from": dateFrom, "to": dateTo}
         alarmFirewall.addAlarm(body='Firewall issue', tags=[site], source=data)
 
 
@@ -178,4 +179,6 @@ if len(destWhereCntGrTh10hosts)>0:
 blocked = complete_ploss[(~complete_ploss['dest_host'].isin(destWhereCntGrTh10hosts))][cols].to_dict(orient='records')
 alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
 for item in blocked:
+    item['from'] = dateFrom
+    item['to'] = dateTo
     alarmCompleteLoss.addAlarm(body='Link shows complete packet loss', tags=[item['src_site'], item['dest_site']], source=item)
