@@ -212,6 +212,8 @@ dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
 # print(dateFrom, dateTo)
 run(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
+df['src_site'] = df['src_site'].str.upper()
+df['dest_site'] = df['dest_site'].str.upper()
 
 # get all necessary data for the nodes and fill it in the raw data from ps_trace in order to repair missing information
 df = fixMissingMetadata(df)

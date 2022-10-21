@@ -670,9 +670,11 @@ def sendAlarms(data):
 
 # query the past 12 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(24)
-# dateFrom, dateTo = ['2022-05-25 09:40', '2022-05-25 21:40']
+#
 runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
+df['src_site'] = df['src_site'].str.upper()
+df['dest_site'] = df['dest_site'].str.upper()
 df['pair'] = df['src']+'-'+df['dest']
 
 # df = fixMissingMetadata(df)
@@ -698,7 +700,7 @@ baseLine, compare2 = getBaseline(valid)
 # T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
 #       'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
 # limit temporarily to the known site having load balancing
-T1 = ['PIC','pic', 'Taiwan-LCG2']
+T1 = ['PIC', 'pic', 'Taiwan-LCG2']
 t1s = compare2[(compare2['src_site'].isin(T1)) & (compare2['dest_site'].isin(T1))]
 updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 

@@ -237,6 +237,8 @@ dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%d %H:%M')
 # get the data
 rawDf = pd.DataFrame(queryData(dateFrom, dateTo))
 rawDf['dt'] = pd.to_datetime(rawDf['from'], unit='ms')
+rawDf['src_site'] = rawDf['src_site'].str.upper()
+rawDf['dest_site'] = rawDf['dest_site'].str.upper()
 
 booleanDictionary = {True: 'ipv6', False: 'ipv4'}
 rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
