@@ -44,7 +44,7 @@ def markPairs(dateFrom, dateTo):
     grouped = tempdf.groupby(['src', 'dest', 'pair', 'src_host', 'dest_host', 'src_site', 'dest_site']).agg(
         {'value': lambda x: x.mean(skipna=False)}, axis=1).reset_index()
 
-    grouped = fixMissingMetadata(grouped)
+    # grouped = fixMissingMetadata(grouped)
 
     # calculate the percentage of measures based on the assumption that ideally measures are done once every minute
     grouped = getPercentageMeasuresDone(grouped, tempdf)
@@ -63,7 +63,7 @@ def markPairs(dateFrom, dateTo):
 
     grouped['flag'] = grouped['value'].apply(lambda val: setFlag(val))
 
-    df = df.append(grouped, ignore_index=True)
+    df = pd.concat([df,grouped], ignore_index=True)
     df.rename(columns={'value': 'avg_value'}, inplace=True)
     df = df.round({'avg_value': 3})
 
@@ -86,6 +86,112 @@ def fixMissingMetadata(rawDf):
     return rawDf
 
 
+def findMultiSiteIssues(sign_ploss, threshold=5):
+    # get the list of destinations for each source site
+    shc = sign_ploss.groupby(['src_host', 'src_site'])['dest_site'].apply(list).reset_index(name='dest_sites').rename(columns={'src_host':'host', 'src_site':'site'}).to_dict('records')
+    # get the list of sources for each destination site
+    dhc = sign_ploss.groupby(['dest_host', 'dest_site'])['src_site'].apply(list).reset_index(name='src_sites').rename(columns={'dest_host':'host', 'dest_site':'site'}).to_dict('records')
+    data = {}
+    passedThrsh = []
+
+    mergedHosts = shc+dhc
+
+    # count the number of unique sites and add the hosts which report issues with >= 5 other sites to the passedThrsh list
+    for items in mergedHosts:
+        cnt = 0
+        if 'dest_sites' in items:
+            cnt = len(set(items['dest_sites']))
+        else: 
+            cnt = len(set(items['src_sites']))
+
+        host = items['host']
+
+        if host not in data.keys():
+            data[host] = cnt
+        else:
+            data[host] = data[host]+cnt
+        
+        if data[host] >= threshold:
+            if host not in passedThrsh:
+                passedThrsh.append(host)
+
+
+    return passedThrsh
+
+
+
+##### High packet loss #####
+
+def sendSignificantLossAlarms(plsDf):
+    sign_ploss = plsDf[(plsDf['flag'] == 1)][cols]
+    sign_ploss['avg_value%'] = round(sign_ploss['avg_value']*100,1)
+
+    # Create the alarm types
+    alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
+    alarmOnPair = alarms('Networking', 'Sites', 'high packet loss')
+    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
+
+    multisiteIssues = findMultiSiteIssues(sign_ploss)
+
+    # exclude all on the list having issues with multiple sites and send individual alarm for each pair
+    for doc in sign_ploss[~((sign_ploss['dest_host'].isin(multisiteIssues)) | (sign_ploss['src_host'].isin(multisiteIssues)))].to_dict(orient='records'):
+            alarmOnPair.addAlarm(body='Link shows high packet loss', tags=[doc['src_site'], doc['dest_site']], source=doc)
+
+
+    for host in multisiteIssues:
+        src_sites, dest_sites, src_loss, dest_loss = [],[],[],[]
+        site = sign_ploss[(sign_ploss['src_host']==host)][['src_site']]
+        site = site.values[0][0] if not site.empty else sign_ploss[(sign_ploss['dest_host']==host)][['dest_site']].values[0][0]
+
+        if not sign_ploss[(sign_ploss['src_host']==host)][['dest_site']].empty:
+            dest_sites = [l[0] for l in sign_ploss[(sign_ploss['src_host']==host)][['dest_site']].values.tolist()]
+            dest_loss = [l[0] for l in sign_ploss[(sign_ploss['src_host']==host)][['avg_value%']].values.tolist()]
+
+        if not sign_ploss[(sign_ploss['dest_host']==host)][['src_site']].empty:
+            src_sites = [l[0] for l in sign_ploss[(sign_ploss['dest_host']==host)][['src_site']].values.tolist()]
+            src_loss = [l[0] for l in sign_ploss[(sign_ploss['dest_host']==host)][['avg_value%']].values.tolist()]   
+
+
+
+        if all([1 if l==100 else 0 for l in src_loss]) and len(dest_sites)==0:
+            doc = {"site":site, "host":host, "sites":src_sites, "from": dateFrom, "to": dateTo}
+            alarmFirewall.addAlarm(body='Firewall issue', tags=[site], source=doc)
+        else:
+            doc = {"site":site, "host":host, "from": dateFrom, "to": dateTo,
+                   "dest_sites":dest_sites, "dest_loss%":dest_loss, "src_sites":src_sites, "src_loss%":src_loss}
+            alarmOnList.addAlarm(body=f'Site {doc["site"]} shows high packet loss to/from multiple sites', tags=[site], source=doc)
+
+
+
+##### Complete packet loss #####
+
+# Hosts/sites showing 100% loss are grouped so that 
+# repeated sources/destinations generate a compact message
+# under 'Firewall issue' event type
+def sendCompleteLossAlarms(plsDf):
+    complete_ploss = plsDf[(plsDf['flag'] == 2)]
+
+    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
+    alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
+
+    # Get the number of sources where the packet loss is 100%
+    completeLossDestAgg = complete_ploss.groupby(['dest_host']).agg({'src_host': 'count'}).rename(columns={'src_host':'cnt'}).reset_index()
+    # Get the total number of source hosts
+    totalNum = plsDf[plsDf['dest_host'].isin(completeLossDestAgg['dest_host'].values)].groupby(['dest_host']).agg({'src_host': 'count'}).rename(columns={'src_host':'cnt'}).reset_index()
+
+    for dest,cnt in completeLossDestAgg.values:
+        if totalNum[totalNum['dest_host']==dest]['cnt'].values[0]==cnt or cnt>=10:
+            site = complete_ploss[complete_ploss['dest_host']==dest]['dest_site'].unique()[0]
+            site_list = complete_ploss[complete_ploss['dest_host']==dest]['src_site'].values.tolist()
+            doc = {"site":site, "host":dest, "sites":site_list, "from": dateFrom, "to": dateTo}
+            alarmFirewall.addAlarm(body='Firewall issue', tags=[site], source=doc)
+        else:
+            docs = complete_ploss[complete_ploss['dest_host']==dest][cols].to_dict(orient='records')
+            for doc in docs:
+                alarmCompleteLoss.addAlarm(body='Link shows complete packet loss', tags=[doc['src_site'], doc['dest_site']], source=doc)
+
+
+
 """
 'src', 'src_host', 'src_site':      info about the source
 'dest', 'dest_host', 'dest_site':   info about the destination
@@ -95,90 +201,15 @@ def fixMissingMetadata(rawDf):
 """
 
 dateFrom, dateTo = hp.defaultTimeRange(hours=24)
-dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
+# dateFrom, dateTo = ['2022-09-26 03:00', '2022-09-27 03:00']
 plsDf = markPairs(dateFrom, dateTo)
 plsDf = plsDf[plsDf['tests_done']!='0%']
 plsDf['from'] = dateFrom
 plsDf['to'] = dateTo
+plsDf['src_site'] = plsDf['src_site'].str.upper()
+plsDf['dest_site'] = plsDf['dest_site'].str.upper()
 cols = ['from', 'to', 'src', 'dest', 'src_host', 'dest_host',
         'src_site', 'dest_site', 'avg_value', 'tests_done']
 
-
-##### High packet loss #####
-
-sign_ploss = plsDf[(plsDf['flag'] == 1)][cols]
-sign_ploss['avg_value%'] = round(sign_ploss['avg_value']*100,1)
-
-# Loop over all src/dest_hosts and grab the sites they show problems with
-data = {}
-for host in list(set(sign_ploss['src_host'].to_list())):
-    site = sign_ploss[(sign_ploss['src_host']==host)]['src_site'].values[0]
-    dest_sites = sign_ploss[sign_ploss['src_host']==host]['dest_site'].values.tolist()
-    loss = sign_ploss[sign_ploss['src_host']==host]['avg_value%'].values.tolist()
-    data[host] = {"site":site, "host":host, "from": dateFrom, "to": dateTo,
-                  "dest_sites":dest_sites, "dest_loss":loss, "src_sites":[], "src_loss":[]}
-
-for host in list(set(sign_ploss['dest_host'].to_list())):
-    site = sign_ploss[(sign_ploss['dest_host']==host)]['dest_site'].values[0]
-    src_sites = sign_ploss[sign_ploss['dest_host']==host]['src_site'].values.tolist()
-    loss = sign_ploss[sign_ploss['dest_host']==host]['avg_value%'].values.tolist()
-
-    if host in data.keys():
-        data[host]["src_sites"] = src_sites
-        data[host]["src_loss"] = loss
-    else: 
-        data[host] = {"site":site, "host":host,  "from": dateFrom, "to": dateTo,
-                      "dest_sites":[], "dest_loss":[], "src_sites": src_sites, "src_loss":loss}
-
-
-# Create the alarm types
-alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
-alarmOnPair = alarms('Networking', 'Sites', 'high packet loss')
-
-# Loop over all hosts and generate alarms depending on the number of sites it shows problems with
-for key, item in data.items():
-    cnt = len(item['src_sites']) + len(item['dest_sites'])
-
-    # If the host shows problems in one direction or both to more than 5 other sites, send an alarm with lists of sites
-    if cnt>=5:
-        alarmOnList.addAlarm(body=f'Site {item["site"]} shows high packet loss to/from multiple sites', tags=[item['site']], source=item)
-    else:
-    # Otherwise send a standard alarm including more fields
-        for src in data[key]['src_sites']:
-            doc = sign_ploss[(sign_ploss['dest_host']==key) & (sign_ploss['src_site']==src)][cols].to_dict(orient='records')[0]
-            alarmOnPair.addAlarm(body='Link shows high packet loss', tags=[doc['src_site'], doc['dest_site']], source=doc)
-        for dest in data[key]['dest_sites']:
-            doc = sign_ploss[(sign_ploss['src_host']==key) & (sign_ploss['dest_site']==dest)][cols].to_dict(orient='records')[0]
-            alarmOnPair.addAlarm(body='Link shows high packet loss', tags=[doc['src_site'], doc['dest_site']], source=doc)
-
-
-
-##### Complete packet loss #####
-
-# Hosts/sites showing 100% loss are grouped so that 
-# repeated sources/destinations generate a compact message
-# under 'Firewall issue' event type
-
-complete_ploss = plsDf[(plsDf['flag'] == 2)]
-alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
-
-
-# Get all destination hosts that have more than 5 source hosts 
-groups = complete_ploss.groupby(['dest_host']).agg({'src_host': 'count'}).reset_index()
-destWhereCntGrTh10hosts = groups[groups['src_host']>10]['dest_host'].values
-
-if len(destWhereCntGrTh10hosts)>0:
-    for host in destWhereCntGrTh10hosts:
-        site = complete_ploss[complete_ploss['dest_host']==host]['dest_site'].unique()[0]
-        site_list = complete_ploss[complete_ploss['dest_host']==host]['src_site'].values.tolist()
-        data = {"site":site, "host":host, "sites":site_list, "from": dateFrom, "to": dateTo}
-        alarmFirewall.addAlarm(body='Firewall issue', tags=[site], source=data)
-
-
-# Send the reamaining pairs under 'complete packet loss' event type
-blocked = complete_ploss[(~complete_ploss['dest_host'].isin(destWhereCntGrTh10hosts))][cols].to_dict(orient='records')
-alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
-for item in blocked:
-    item['from'] = dateFrom
-    item['to'] = dateTo
-    alarmCompleteLoss.addAlarm(body='Link shows complete packet loss', tags=[item['src_site'], item['dest_site']], source=item)
+sendSignificantLossAlarms(plsDf)
+sendCompleteLossAlarms(plsDf)
