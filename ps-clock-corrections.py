@@ -56,7 +56,10 @@ for r in res:
     if not count % 100000:
         print(count)
 df = pd.DataFrame(
-    {'delay_mean': delay_mean, 'src_host': src_host, 'dest_host': dest_host})
+    {'delay_mean': delay_mean, 'src_host': src_host, 'dest_host': dest_host, 'src_site': src_site, 'dest_site': dest_site})
+
+# prepare to tag sites as well
+ddf = df[['src_host', 'dest_host', 'src_site', 'dest_site']].drop_duplicates()
 
 # ### plotting the histogram, providing some basic stats
 
@@ -97,7 +100,14 @@ while not bad_hosts_df.empty:
 if len(list_of_hosts_with_bad_measurements):
     ALARM = alarms('Networking', 'Perfsonar', 'bad owd measurements')
     for bh in list_of_hosts_with_bad_measurements:
-        ALARM.addAlarm(body=bh, tags=[bh])
+        # add site names to the list of tags
+        site = ''
+        if not ddf[ddf['src_host']==bh].empty:
+            site = ddf[ddf['src_host']==bh]['src_site'].values[0]
+        else: site = ddf[ddf['dest_host']==bh]['dest_site'].values[0] 
+        tags = [bh, site] if site is not None else [bh]
+
+        ALARM.addAlarm(body=bh, tags=tags)
 
 # ### removing hosts with too high measurements
 
@@ -162,9 +172,16 @@ df_corr = df_hosts[abs(df_hosts['correction']) > 100]
 
 ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
 for (node, correction) in df_corr.values:
+    # add site names to the list of tags
+    site = ''
+    if not ddf[ddf['src_host']==node].empty:
+        site = ddf[ddf['src_host']==node]['src_site'].values[0]
+    else: site = ddf[ddf['dest_host']==node]['dest_site'].values[0]
+    tags = [node, site] if site is not None else [node]
+
     ALARM.addAlarm(
         body=node+" "+str(correction),
-        tags=[node],
+        tags=tags,
         source={"node": node, "correction": correction}
     )
 
