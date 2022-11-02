@@ -108,7 +108,7 @@ if len(list_of_hosts_with_bad_measurements):
         if not ddf[ddf['src_host']==bh].empty:
             site = ddf[ddf['src_host']==bh]['src_site'].values[0]
         else: site = ddf[ddf['dest_host']==bh]['dest_site'].values[0] 
-        tags = [bh, site] if site is not None else [bh]
+        tags = [bh, site.upper()] if site is not None else [bh]
 
         ALARM.addAlarm(body=bh, tags=tags)
 
@@ -180,7 +180,7 @@ for (node, correction) in df_corr.values:
     if not ddf[ddf['src_host']==node].empty:
         site = ddf[ddf['src_host']==node]['src_site'].values[0]
     else: site = ddf[ddf['dest_host']==node]['dest_site'].values[0]
-    tags = [node, site] if site is not None else [node]
+    tags = [node, site.upper()] if site is not None else [node]
 
     ALARM.addAlarm(
         body=node+" "+str(correction),
