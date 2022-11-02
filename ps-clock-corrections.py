@@ -47,11 +47,14 @@ count = 0  # tests
 delay_mean = []
 dest_host = []
 src_host = []
+src_site, dest_site = [],[]
 
 for r in res:
     delay_mean.append(r.get('_source').get('delay_mean'))
     dest_host.append(r.get('_source').get('dest_host'))
     src_host.append(r.get('_source').get('src_host'))
+    src_site.append(r.get('_source').get('src_site'))
+    dest_site.append(r.get('_source').get('dest_site'))
     count += 1
     if not count % 100000:
         print(count)
