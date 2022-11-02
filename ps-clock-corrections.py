@@ -26,7 +26,7 @@ es = Elasticsearch(
 es.ping()
 
 my_query = {
-    '_source': ['delay_mean', 'dest_host', 'src_host'],
+    '_source': ['delay_mean', 'dest_host', 'src_host', 'src_site', 'dest_site'],
     'query': {
         'bool': {
             'must': [{
