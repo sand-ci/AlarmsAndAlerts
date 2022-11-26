@@ -1,6 +1,11 @@
 from datetime import datetime, timedelta
 import time
-import json
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import multiprocessing
+from functools import wraps
+import getpass
+import numpy as np
+import pandas as pd
 
 from elasticsearch import Elasticsearch
 import functools
@@ -27,6 +32,29 @@ def timer(func):
         print(f"Finished {func.__name__!r} in {run_time:.4f} secs")
         return value
     return wrapper_timer
+
+
+''' Takes a function, splits a dataframe into batches and excutes the function passing a batch as a parameter.'''
+
+def parallelPandas(function):
+    @wraps(function)
+    def wrapper(dataframe):
+        cores = multiprocessing.cpu_count()
+        if cores>15:
+            cores = 15
+
+        splits = np.array_split(dataframe, cores)
+        result = []
+
+        with ProcessPoolExecutor(max_workers=cores) as pool:
+            result.extend(pool.map(function, splits))
+
+        frame = pd.DataFrame()
+        for data in result:
+            frame = pd.concat([frame, data])
+            
+        return frame
+    return wrapper
 
 
 '''Returns a period of the past 3 hours'''
