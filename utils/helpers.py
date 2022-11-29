@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import time
+import json
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing
 from functools import wraps
@@ -36,11 +37,12 @@ def timer(func):
 
 ''' Takes a function, splits a dataframe into batches and excutes the function passing a batch as a parameter.'''
 
+
 def parallelPandas(function):
     @wraps(function)
     def wrapper(dataframe):
         cores = multiprocessing.cpu_count()
-        if cores>15:
+        if cores > 15:
             cores = 15
 
         splits = np.array_split(dataframe, cores)
@@ -52,7 +54,7 @@ def parallelPandas(function):
         frame = pd.DataFrame()
         for data in result:
             frame = pd.concat([frame, data])
-            
+
         return frame
     return wrapper
 
@@ -109,4 +111,4 @@ def roundTime(dt=None, round_to=60*60):
         dt = datetime.utcnow()
     seconds = (dt - dt.min).seconds
     rounding = (seconds+round_to/2) // round_to * round_to
-    return dt + timedelta(0,rounding-seconds,-dt.microsecond)
+    return dt + timedelta(0, rounding-seconds, -dt.microsecond)
