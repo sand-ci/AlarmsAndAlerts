@@ -1,19 +1,15 @@
 from elasticsearch.helpers import scan, parallel_bulk
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import multiprocessing
-from multiprocessing import Manager
+from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 import json
 import requests
 import collections
 import hashlib
-import numpy as np
 import traceback
 
 import utils.helpers as hp
 import utils.queries as qrs
 from utils.helpers import timer
-from utils.helpers import parallelPandas
 from alarms import alarms
 
 
@@ -37,7 +33,8 @@ def queryPSTrace(dt):
     }
     # print(str(query).replace("\'", "\""))
     try:
-        return scan_gen(scan(hp.es, index="ps_trace", query=query, filter_path=['_scroll_id', '_shards', 'hits.hits._source']))
+        return scan_gen(scan(hp.es, index="ps_trace", query=query,
+                             filter_path=['_scroll_id', '_shards', 'hits.hits._source']))
     except Exception as e:
         print(e)
 
@@ -46,7 +43,7 @@ def scan_gen(scan):
     while True:
         try:
             yield next(scan)['_source']
-        except:
+        except Exception:
             break
 
 
@@ -59,8 +56,6 @@ def ps_trace(dt):
         items.append(meta)
 
     return items
-
-
 
 
 # queries in chunks based on time ranges
@@ -83,7 +78,7 @@ def runInParallel(dateFrom, dateTo):
     result = []
     with ProcessPoolExecutor(max_workers=len(dtList)) as pool:
         result.extend(pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)]))
-    
+
     data = []
     for d in result:
         data.extend(d)
@@ -141,7 +136,7 @@ def fix0ASNs(df):
 
     relDf['asns_updated'] = relDf['asns']
 
-    print(f'Attempt to fix unknown ASNs based on mapped IP addresses...')
+    print('Attempt to fix unknown ASNs based on mapped IP addresses...')
     c = 0
 
     try:
@@ -150,29 +145,29 @@ def fix0ASNs(df):
             if len(asns)>0 and 0 in asns:
                 asns_updated = asns.copy()
 
-                positions = [pos for pos,n in enumerate(asns) if n==0]
+                positions = [pos for pos, n in enumerate(asns) if n==0]
 
                 for pos in positions:
-                    # when AS number is 0 (unknown) get the IP at this position and find all ASNs for it, usually it is just 1
+                    # when AS number is 0 (unknown) get the IP at this position and
+                    # find all ASNs for it, usually it is just 1
                     ip = hops[pos]
                     asns4IP = ip2asn[ip]
-                    
+
                     if 0 in asns4IP:
                         asns4IP.remove(0)
-                    
+
                     if asns4IP:
                         if len(asns4IP) < 3:
                             # replace 0 with the known ASN for that IP
                             asns_updated[pos] = asns4IP[0]
-                            if len(asns4IP) > 1:
-                                # when there are 2 we add both
-                                asns_updated.append(asns4IP[1])
+                            # if len(asns4IP) > 1:
+                            #     # when there are 2 we add both
+                            #     asns_updated.append(asns4IP[1])
                             if idx not in zfix:
                                 zfix.append(idx)
 
                         else:
-                            print('Too many possibilities ........................',idx, asns, pos)
-
+                            print('Too many possibilities ...', idx, asns, pos)
 
                 relDf.at[idx, 'asns_updated'] = asns_updated
 
@@ -183,9 +178,7 @@ def fix0ASNs(df):
         print(f'{len(zfix)} zeros successfully replaced with AS numbers.', flush=True)
         return relDf
     except Exception as e:
-            print(e, traceback.format_exc())
-            
-
+        print(e, traceback.format_exc())
 
 
 # Gets all ASNs for each site name from CRIC
@@ -205,7 +198,9 @@ def getCricASNInfo():
         temp = []
         for netsite in rcsites[rcsite]['netsites']:
             for netroute in rcsites[rcsite]['netroutes']:
-                if rcsites[rcsite]['netroutes'][netroute]["netsite"] == netsite or rcsites[rcsite]['netroutes'][netroute]["netsite_spare"] == netsite:
+                if rcsites[rcsite]['netroutes'][netroute]["netsite"] == netsite or \
+                   rcsites[rcsite]['netroutes'][netroute]["netsite_spare"] == netsite:
+
                     for iptype in rcsites[rcsite]['netroutes'][netroute]["networks"]:
                         for subnet in rcsites[rcsite]['netroutes'][netroute]["networks"][iptype]:
                             asn = rcsites[rcsite]['netroutes'][netroute]["asn"]
@@ -321,35 +316,49 @@ def getStats4Paths(relDf, df):
                             hashList.append(hashid)
 
                             if len(g) > 0:
-                                # store just the unique sequences since Pandas has limitted functions on dataframes with lists
-                                uniquePathsList.append([group.name[0], group.name[1], asnList, len(asnList), len(group.values), hashid])
-                        if len(g) > 0:       
-                            # store all values + the cleaned paths and hashes, so that we can get the probabilities later
-                            allPathsList.append([group.name[0], group.name[1], asnList, len(asnList), len(group.values), hashid, group.destination_reached.values[i]])
+                                # store just the unique sequences since
+                                # Pandas has limitted functions on dataframes with lists
+                                uniquePathsList.append([group.name[0], group.name[1], asnList,
+                                                        len(asnList), len(group.values), hashid])
+                        if len(g) > 0:
+                            # store all values + the cleaned paths and hashes,
+                            # so that we can get the probabilities later
+                            allPathsList.append([group.name[0], group.name[1], asnList, len(asnList),
+                                                len(group.values), hashid, group.destination_reached.values[i]])
         except Exception as e:
             print('Issue wtih:', group.name, asnList)
             print(e)
 
-    relDf[['src', 'dest', 'asns_updated', 'hops', 'destination_reached']].groupby(['src', 'dest']).apply(lambda x: hashASNs(x))
+    relDf[['src', 'dest', 'asns_updated', 'hops', 'destination_reached']].\
+        groupby(['src', 'dest']).apply(lambda x: hashASNs(x))
 
-    uniquePaths = pd.DataFrame(uniquePathsList).rename(columns={0: 'src', 1: 'dest', 2: 'asns_updated', 3: 'cnt_asn', 4: 'cnt_total_measures', 5: 'hash'})
+    uniquePaths = pd.DataFrame(uniquePathsList).rename(columns={
+        0: 'src', 1: 'dest', 2: 'asns_updated',
+        3: 'cnt_asn', 4: 'cnt_total_measures', 5: 'hash'
+    })
     uniquePaths['pair'] = uniquePaths['src']+'-'+uniquePaths['dest']
 
-    cleanPathsAllTests = pd.DataFrame(allPathsList).rename(columns={0: 'src', 1: 'dest', 2: 'asns_updated', 3: 'cnt_asn', 4: 'cnt_total_measures', 5: 'hash', 6: 'dest_reached'})
+    cleanPathsAllTests = pd.DataFrame(allPathsList).rename(columns={
+        0: 'src', 1: 'dest', 2: 'asns_updated', 3: 'cnt_asn',
+        4: 'cnt_total_measures', 5: 'hash', 6: 'dest_reached'
+    })
 
     # for each hashed path check if all tests reported destination_reached=True
-    pathReachedDestDf = cleanPathsAllTests.groupby('hash').apply(lambda x: True if all(x.dest_reached) else False).to_frame().rename(columns={0:'path_always_reaches_dest'})
+    pathReachedDestDf = cleanPathsAllTests.groupby('hash').\
+        apply(lambda x: True if all(x.dest_reached) else False).\
+        to_frame().rename(columns={0: 'path_always_reaches_dest'})
 
     # get the probability for each path in a column (hash_freq)
-    pathFreq = cleanPathsAllTests.groupby(['src', 'dest'])['hash'].apply(lambda x: x.value_counts(normalize=True)).to_frame()
+    pathFreq = cleanPathsAllTests.groupby(['src', 'dest'])['hash'].\
+        apply(lambda x: x.value_counts(normalize=True)).to_frame()
     pathFreq = pathFreq.reset_index().rename(columns={'hash': 'hash_freq', 'level_2': 'hash'})
 
     # finally merge with the rest of the dataframes in order to add all available fields
     pathDf = pd.merge(uniquePaths, pathFreq, how="inner", on=['src', 'dest', 'hash'])
     sub = df[['dest', 'src_site', 'src', 'dest_site', 'src_host', 'dest_host', 'pair']].drop_duplicates()
-    pathDf = pd.merge(pathDf, sub, on=['pair', 'src', 'dest'], how='inner').drop_duplicates(subset=['hash','pair'])
+    pathDf = pd.merge(pathDf, sub, on=['pair', 'src', 'dest'], how='inner').drop_duplicates(subset=['hash', 'pair'])
     pathDf = pd.merge(pathDf, pathReachedDestDf, how="left", on=['hash'])
-    
+
     return pathDf
 
 
@@ -388,9 +397,7 @@ def getBaseline(dd):
                 else:
                     max_position = cnt_max_position[0]
 
-
             baselineList.append(group.index.values[max_position])
-
 
         except Exception as e:
             print('EXCEPTION:', e, name)
@@ -441,15 +448,19 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
 
                     for d in diff:
 
-                        if not d in upbase:
+                        if d not in upbase:
                             if d in altsOfAlts.keys():
-                                # if none of the alternative ASNs is in the baseline path or the updated baseline list, then flag it to True (meaning raise an alarm)
-                                flag = not any(False if alt not in base or alt in upbase else True for alt in altsOfAlts[d])
+                                # if none of the alternative ASNs is in the baseline path or the updated baseline list,
+                                # then flag it to True (meaning raise an alarm)
+                                flag = not any(False if alt not in base or alt in upbase else True
+                                               for alt in altsOfAlts[d])
                                 # print(flag)
 
                             elif d in cricDict.keys():
-                                # some ASN alternatives are found in CRIC, if that's the case, there is no need for an alarm
-                                flag = not any(False if alt not in base or alt in upbase else True for alt in cricDict[d])
+                                # some ASN alternatives are found in CRIC, if that's the case,
+                                # there is no need for an alarm
+                                flag = not any(False if alt not in base or alt in upbase else True
+                                               for alt in cricDict[d])
 
                             else:
                                 flag = True
@@ -459,7 +470,6 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
 
                     # store the ASNs not on the baseline list or on the alternative ASN lists
                     diff_temp.extend(diff)
-
 
             # exclude paths having <3 hops, and check if any flags were raised
             if any(alarms) > 0 and len(base) >= 2:
@@ -490,7 +500,7 @@ def positionASNsUsingTTLs(pairs, relDf, max_ttl):
             missing = {x: -1 for x in range(ttls[0], ttls[-1]+1) if x not in ttls}
             posDf.loc[idx, list(missing.keys())] = list(missing.values())
             posDf.loc[idx, 'pair'] = pair
-            
+
     return posDf
 
 
@@ -566,19 +576,22 @@ def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
 
     alarmsList = []
 
-    for asn, g in diffDf[diffDf['diff'].isin(top.index)][['diff', 'src_site', 'dest_site']].drop_duplicates().groupby('diff'):
+    for asn, g in diffDf[diffDf['diff'].isin(top.index)][['diff', 'src_site', 'dest_site']].\
+            drop_duplicates().groupby('diff'):
+
         affectedSites = list(set(g['src_site'].values.tolist() + g['dest_site'].values.tolist()))
         toHash = ','.join([str(asn), dateFrom, dateTo])
         alarm_id = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
 
-        owner = asnInfo[str(asn)] if str(asn) in asnInfo.keys() else ''
-        alarmsList.append({'asn': asn,
-                           'owner': asnInfo[str(asn)],
-                           'num_pairs': str(top[top.index == asn]['pair'].values[0]),
-                           'sites': affectedSites,
-                           'from': dateFrom,
-                           'to': dateTo,
-                           'alarm_id': alarm_id})
+        alarmsList.append({
+            'asn': asn,
+            'owner': asnInfo[str(asn)],
+            'num_pairs': str(top[top.index == asn]['pair'].values[0]),
+            'sites': affectedSites,
+            'from': dateFrom,
+            'to': dateTo,
+            'alarm_id': alarm_id
+        })
 
     return alarmsList
 
@@ -587,20 +600,20 @@ def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
 @timer
 def fixMissingMetadata(rawDf):
     metaDf = qrs.getMetaData()
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
-                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
-                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').\
+        rename(columns={'host': 'host_src', 'site': 'site_src'}).drop(columns=['ip'])
+    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').\
+        rename(columns={'host': 'host_dest', 'site': 'site_dest'}).drop(columns=['ip'])
 
     rawDf['site_src'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
     rawDf['site_dest'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
     rawDf['host_src'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
     rawDf['host_dest'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
 
-    rawDf.rename(columns={'host_src':'src_host','site_src':'src_site',
-                          'host_dest':'dest_host','site_dest':'dest_site'}, inplace=True)
-    
-    rawDf = rawDf[(rawDf['src_site']!='')&(rawDf['dest_site']!='')]
+    rawDf.rename(columns={'host_src': 'src_host', 'site_src': 'src_site',
+                          'host_dest': 'dest_host', 'site_dest': 'dest_site'}, inplace=True)
+
+    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='')]
     return rawDf
 
 
@@ -629,9 +642,10 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
     def getPaths(fld, ddf):
         temp = {}
         if len(ddf)>0:
-            temp[fld] = ddf[['asns_updated','cnt_total_measures','path_always_reaches_dest','hash_freq']].to_dict('records')
+            temp[fld] = ddf[['asns_updated', 'cnt_total_measures', 'path_always_reaches_dest', 'hash_freq']].\
+                to_dict('records')
         return temp
-    
+
     probDf = probDf.round(2)
     baseLine = baseLine.round(2)
     updatedbaseLine = updatedbaseLine.round(2)
@@ -645,22 +659,21 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         temp['to_date'] = dateTo
         temp['_index'] = 'ps_trace_changes'
         temp['diff'] = diff
-        temp.update(baseLine[baseLine['pair']==pair][['src','dest','src_host', 'dest_host', 'src_site', 'dest_site']].to_dict('records')[0])
+        temp.update(baseLine[baseLine['pair']==pair]
+                            [['src', 'dest', 'src_host', 'dest_host', 'src_site', 'dest_site']].to_dict('records')[0])
 
         temp.update(getPaths('baseline', baseLine[baseLine['pair']==pair]))
         temp.update(getPaths('second_baseline', updatedbaseLine[updatedbaseLine['pair']==pair]))
         temp.update(getPaths('alt_paths', compare2[compare2['pair']==pair]))
-        temp['positions'] = probDf[probDf['pair']==pair][['asn','pos','P']].round(2).to_dict('records')
-        
-        alarmsData.append(temp)
+        temp['positions'] = probDf[probDf['pair']==pair][['asn', 'pos', 'P']].round(2).to_dict('records')
 
+        alarmsData.append(temp)
 
     print(f'Number of docs: {len(alarmsData)}')
 
     def genData(data):
         for d in data:
             yield d
-
 
     for success, info in parallel_bulk(hp.es, genData(alarmsData)):
         if not success:
@@ -670,7 +683,7 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
 @timer
 def sendAlarms(data):
     ALARM = alarms('Networking', 'RENs', 'path changed')
-    
+
     for issue in data:
         ALARM.addAlarm(
             body="Path changed",
@@ -683,7 +696,7 @@ def sendAlarms(data):
 dateFrom, dateTo = hp.defaultTimeRange(24)
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
-print('Total number of documnets:',len(df))
+print('Total number of documnets:', len(df))
 df['src_site'] = df['src_site'].str.upper()
 df['dest_site'] = df['dest_site'].str.upper()
 df['pair'] = df['src']+'-'+df['dest']
@@ -719,7 +732,8 @@ updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
 # Ignore sites for which we know there's an issue
 ignore_list = ['ATLAS-CBPF', 'NCP-LCG2', 'UTA_SWT2', 'RRC_KI', 'CBPF', 'IN2P3-CC', 'JINR-LCG2', 'EELA-UTFSM',
-               'JINR-T1', 'RRC-KI-T1', 'RRC-KI', 'ITEP', 'RU-Protvino-IHEP', 'BEIJING-LCG2', 'IHEP', 'IN2P3-CC', 'UTA_SWT2']
+               'JINR-T1', 'RRC-KI-T1', 'RRC-KI', 'ITEP', 'RU-Protvino-IHEP', 'BEIJING-LCG2', 'IHEP',
+               'IN2P3-CC', 'UTA_SWT2']
 cut = compare2[(~compare2['src_site'].isin(ignore_list)) & (~compare2['dest_site'].isin(ignore_list))]
 
 # Get the pairs which took different form the usual paths
@@ -739,7 +753,8 @@ diffs = getChanged(baseLine, compare2, updatedbaseLine, altsOfAlts, cricDict, cu
 saveStats(diffs, df, probDf, baseLine, updatedbaseLine, compare2)
 
 # Extract all seen ASNs
-asns = list(set([str(item) for l in diffs.values() for item in l]))
+asns = list(set([str(item) for diffList in diffs.values()
+            for item in diffList]))
 # Get the oweners of the ASNs
 asnInfo = getASNInfo(asns)
 # Build the dictinary of alarms where for each ASN, there is an owner, number of pairs and a list of affected sites
