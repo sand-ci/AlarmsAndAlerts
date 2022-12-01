@@ -14,6 +14,8 @@ tend = datetime.now()
 tstart = tend - timedelta(days=1)
 start = pd.Timestamp(tstart)
 end = pd.Timestamp(tend)
+dateFrom = datetime.strftime(start, '%Y-%m-%d %H:%M')
+dateTo = datetime.strftime(end, '%Y-%m-%d %H:%M')
 
 with open('/config/config.json') as json_data:
     config = json.load(json_data,)
@@ -47,7 +49,7 @@ count = 0  # tests
 delay_mean = []
 dest_host = []
 src_host = []
-src_site, dest_site = [],[]
+src_site, dest_site = [], []
 
 for r in res:
     delay_mean.append(r.get('_source').get('delay_mean'))
@@ -58,8 +60,8 @@ for r in res:
     count += 1
     if not count % 100000:
         print(count)
-df = pd.DataFrame(
-    {'delay_mean': delay_mean, 'src_host': src_host, 'dest_host': dest_host, 'src_site': src_site, 'dest_site': dest_site})
+df = pd.DataFrame({'delay_mean': delay_mean, 'src_host': src_host, 'dest_host': dest_host,
+                   'src_site': src_site, 'dest_site': dest_site})
 
 # prepare to tag sites as well
 ddf = df[['src_host', 'dest_host', 'src_site', 'dest_site']].drop_duplicates()
@@ -105,9 +107,10 @@ if len(list_of_hosts_with_bad_measurements):
     for bh in list_of_hosts_with_bad_measurements:
         # add site names to the list of tags
         site = ''
-        if not ddf[ddf['src_host']==bh].empty:
-            site = ddf[ddf['src_host']==bh]['src_site'].values[0]
-        else: site = ddf[ddf['dest_host']==bh]['dest_site'].values[0] 
+        if not ddf[ddf['src_host'] == bh].empty:
+            site = ddf[ddf['src_host'] == bh]['src_site'].values[0]
+        else:
+            site = ddf[ddf['dest_host'] == bh]['dest_site'].values[0]
         tags = [bh, site.upper()] if site is not None else [bh]
 
         ALARM.addAlarm(body=bh, tags=tags)
@@ -177,16 +180,17 @@ ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
 for (node, correction) in df_corr.values:
     # add site names to the list of tags
     site = ''
-    if not ddf[ddf['src_host']==node].empty:
-        site = ddf[ddf['src_host']==node]['src_site'].values[0]
-    else: site = ddf[ddf['dest_host']==node]['dest_site'].values[0]
+    if not ddf[ddf['src_host'] == node].empty:
+        site = ddf[ddf['src_host'] == node]['src_site'].values[0]
+    else:
+        site = ddf[ddf['dest_host'] == node]['dest_site'].values[0]
     tags = [node, site.upper()] if site is not None else [node]
 
-    ALARM.addAlarm(
-        body=node+" "+str(correction),
-        tags=tags,
-        source={"node": node, "correction": correction}
-    )
+    # ALARM.addAlarm(
+    #     body=node+" "+str(correction),
+    #     tags=tags,
+    #     source={"node": node, "correction": correction, "from": dateFrom, "to": dateTo}
+    # )
 
 # print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
 # plt.hist(df_hosts.correction, range=(
