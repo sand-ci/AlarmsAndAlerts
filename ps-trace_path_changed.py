@@ -279,7 +279,7 @@ def getAltsOfAlts(altASNsDict):
 
 
 # Adds known ASNs manuaaly
-def mapASNsManualy(asn1, asn2):
+def mapASNsManualy(asn1, asn2, altsOfAlts):
     if asn1 not in altsOfAlts.keys():
         altsOfAlts[asn1] = [asn2]
     else:
@@ -485,38 +485,38 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
 
 # Builds a dataframe that takes into account the missing TTLs
 @timer
-def positionASNsUsingTTLs(pairs, relDf, max_ttl):
-    subset = relDf[relDf['pair'].isin(
-        pairs)][['asns_updated', 'hops', 'pair', 'ttls']].values.tolist()
-
-    columns = ['pair', 'max_ttl']
-    columns.extend(range(1, max_ttl+1))
-    posDf = pd.DataFrame(columns=columns)
-
-    for asns, hops, pair, ttls in subset:
+def positionASNsUsingTTLs(subset):
+    pdf = pd.DataFrame()
+    for idx, asns, hops, pair, ttls in subset.itertuples():
         if len(asns) == len(hops) and ttls:
-            idx = len(posDf)
-            posDf.loc[idx, ttls] = asns
+            pdf.loc[idx, ttls] = asns
             missing = {x: -1 for x in range(ttls[0], ttls[-1]+1) if x not in ttls}
-            posDf.loc[idx, list(missing.keys())] = list(missing.values())
-            posDf.loc[idx, 'pair'] = pair
-
-    return posDf
-
+            pdf.loc[idx, list(missing.keys())] = list(missing.values())
+            pdf.loc[idx, 'pair'] = pair
+    return pdf
 
 # Gets the probability of an ASN to apear at each position on the path
 @timer
 def getProbabilities(posDf, max_ttl):
+    columns = ['pair']
+    columns.extend(sorted([c for c in posDf.columns if c != 'pair']))
+    posDf = posDf[columns].sort_values('pair')
+    
     plist = []
 
     def calcP(g):
-        pair = g.pair.values[0]
-        for col in range(1, max_ttl+1):
-            asns = g[col].value_counts('probability').index.values
-            p = g[col].value_counts('probability').values
+        try:
+            pair = g.pair.values[0]
+            for col in range(1, len(g.columns)):
 
-            for i, asn in enumerate(asns):
-                plist.append([pair, asn, col, p[i]])
+                asns = g[col].value_counts('probability').index.values
+                p = g[col].value_counts('probability').values
+
+                for i, asn in enumerate(asns):
+                    plist.append([pair, asn, col, p[i]])
+        except Exception as e:
+            print(pair)
+            print(e)
 
     posDf.groupby('pair').apply(lambda g: calcP(g))
 
@@ -708,14 +708,14 @@ cricDict = getCricASNInfo()
 altASNsDict = getAltASNs(asn2ip, ip2asn)
 altsOfAlts = getAltsOfAlts(altASNsDict)
 
-mapASNsManualy(291, 293)
-mapASNsManualy(293, 291)
+mapASNsManualy(291, 293, altsOfAlts)
+mapASNsManualy(293, 291, altsOfAlts)
 
 relDf = hp.parallelPandas(fix0ASNs)(df)
 
 pathDf = getStats4Paths(relDf, df)
 
-# # remove rows where site is None and ignore those with 100% stable paths
+# remove rows where site is None and ignore those with 100% stable paths
 valid = pathDf[~(pathDf['src_site'].isnull()) & ~(pathDf['dest_site'].isnull()) & (pathDf['hash_freq'] < 1)].copy()
 if len(valid) == 0:
     raise NameError('No valid paths. Check pathDf.')
@@ -740,7 +740,9 @@ cut = compare2[(~compare2['src_site'].isin(ignore_list)) & (~compare2['dest_site
 diffs = getChanged(baseLine, compare2, updatedbaseLine, altsOfAlts, cricDict, cut)
 
 # Build a position matrix, where each TTL helps put ASNs at their places
-posDf = positionASNsUsingTTLs(diffs.keys(), relDf, max_ttl)
+subset = relDf[relDf['pair'].isin(diffs.keys())][['asns_updated', 'hops', 'pair', 'ttls']]
+posDf = hp.parallelPandas(positionASNsUsingTTLs)(subset)
+
 # Get the probability for each position, based on src-dest pair
 probDf = getProbabilities(posDf, max_ttl)
 
