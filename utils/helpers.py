@@ -1,26 +1,43 @@
 from datetime import datetime, timedelta
+import dateutil.relativedelta
 import time
+import os
 import json
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import multiprocessing
-from functools import wraps
-import getpass
-import numpy as np
 import pandas as pd
+import numpy as np
 
 from elasticsearch import Elasticsearch
+from elasticsearch.helpers import scan
+import getpass
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import functools
+from functools import wraps
 
 
-INDICES = ['ps_packetloss', 'ps_owd', 'ps_retransmits', 'ps_throughput', 'ps_trace']
+INDICES = ['ps_packetloss', 'ps_owd',
+           'ps_retransmits', 'ps_throughput', 'ps_trace']
 
-with open('/config/config.json') as json_data:
-    config = json.load(json_data,)
+user, passwd, mapboxtoken = None, None, None
+with open("creds.key") as f:
+    user = f.readline().strip()
+    passwd = f.readline().strip()
+    mapboxtoken = f.readline().strip()
 
-es = Elasticsearch(
-    hosts=[{'host': config['ES_HOST'], 'port':9200, 'scheme':'https'}],
-    http_auth=(config['ES_USER'], config['ES_PASS']),
-    request_timeout=60)
+
+def ConnectES():
+    global user, passwd
+    credentials = (user, passwd)
+
+    try:
+        es = Elasticsearch([{'host': 'atlas-kibana.mwt2.org', 'port': 9200, 'scheme': 'https'}],
+                           timeout=240, http_auth=credentials, max_retries=10)
+        print('Connected' if es.ping() == True else 'Fail to connect')
+        return es
+    except Exception as error:
+        print(">>>>>> Elasticsearch Client Error:", error)
+
+
+es = ConnectES()
 
 
 def timer(func):
@@ -30,22 +47,18 @@ def timer(func):
         value = func(*args, **kwargs)
         end_time = time.perf_counter()
         run_time = end_time - start_time
-        print(f"Finished {func.__name__!r} in {run_time:.4f} secs")
+        print(f"Finished {func.__name__} in {run_time:.4f} secs")
         return value
     return wrapper_timer
 
 
-''' Takes a function, splits a dataframe into batches and excutes the function passing a batch as a parameter.'''
-
-
+''' Takes a function, splits a dataframe into 
+batches and excutes the function passing a batch as a parameter.'''
 def parallelPandas(function):
     @wraps(function)
     def wrapper(dataframe):
-        cores = multiprocessing.cpu_count()
-        if cores > 15:
-            cores = 15
-
-        splits = np.array_split(dataframe, cores)
+        cores = 16
+        splits = np.array_split(dataframe, cores*2)
         result = []
 
         with ProcessPoolExecutor(max_workers=cores) as pool:
@@ -59,9 +72,12 @@ def parallelPandas(function):
     return wrapper
 
 
+def convertTime(ts):
+    if pd.notnull(ts):
+        return datetime.utcfromtimestamp(ts/1000).strftime('%Y-%m-%d %H:%M')
+
+
 '''Returns a period of the past 3 hours'''
-
-
 def defaultTimeRange(hours=3):
     now = datetime.utcnow()
     defaultEnd = datetime.strftime(now, '%Y-%m-%d %H:%M')
@@ -72,8 +88,6 @@ def defaultTimeRange(hours=3):
 
 
 '''Finds the difference between two dates'''
-
-
 def FindPeriodDiff(dateFrom, dateTo):
     fmt = '%Y-%m-%d %H:%M'
     d1 = datetime.strptime(dateFrom, fmt)
@@ -84,8 +98,6 @@ def FindPeriodDiff(dateFrom, dateTo):
 
 
 '''Splits the period into chunks of specified number of intervals.'''
-
-
 def GetTimeRanges(dateFrom, dateTo, intv=1):
     diff = FindPeriodDiff(dateFrom, dateTo) / intv
     t_format = "%Y-%m-%d %H:%M"
@@ -98,8 +110,6 @@ def GetTimeRanges(dateFrom, dateTo, intv=1):
 
 
 '''The following method helps to calculate the expected number of tests for a specific period'''
-
-
 def CalcMinutes4Period(dateFrom, dateTo):
     time_delta = FindPeriodDiff(dateFrom, dateTo)
 

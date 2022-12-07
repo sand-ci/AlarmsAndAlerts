@@ -23,15 +23,8 @@ def getMetaData():
 
 def allTestedNodes(period):
     def query(direction):
-        query = {
+        return {
           "size" : 0,
-          "sort": [
-            {
-              "timestamp": {
-                "order": "desc"
-              }
-            }
-          ],
           "query" : {
             "bool" : {
               "must" : [
@@ -88,32 +81,35 @@ def allTestedNodes(period):
             }
           }
         }
-        # print(str(query).replace("\'", "\""))
-        return query
-
-
     aggrs = []
     pairsDf = pd.DataFrame()
     for idx in hp.INDICES:
         aggdata = hp.es.search(index=idx, body=query('src'))
         aggrs = []
         for item in aggdata['aggregations']['groupby']['buckets']:
-            aggrs.append({
-                          'ip': item['key']['src'],
-                          'ipv6': item['key']['ipv6'],
-                          'host': item['key']['src_host'],
-                          'site': item['key']['src_site'],
-            })
+          site = ''
+          if item['key']['src_site']:
+            site = item['key']['src_site'].upper()
+          aggrs.append({
+                        'ip': item['key']['src'],
+                        'ipv6': item['key']['ipv6'],
+                        'host': item['key']['src_host'],
+                        'site': site,
+          })
 
         aggdata = hp.es.search(index=idx, body=query('dest'))
         for item in aggdata['aggregations']['groupby']['buckets']:
-            aggrs.append({
-                          'ip': item['key']['dest'],
-                          'ipv6': item['key']['ipv6'],
-                          'host': item['key']['dest_host'],
-                          'site': item['key']['dest_site'],
-                         })
+          site = ''
+          if item['key']['dest_site']:
+              site = item['key']['dest_site'].upper()
+          aggrs.append({
+                        'ip': item['key']['dest'],
+                        'ipv6': item['key']['ipv6'],
+                        'host': item['key']['dest_host'],
+                        'site': site,
+                        })
 
+        # pairsDf = pairsDf.append(aggrs)
         pairsDf = pd.concat([pairsDf, pd.DataFrame(aggrs)])
         pairsDf = pairsDf.drop_duplicates()
         # print(idx, 'Len unique nodes ',len(pairsDf), 'period:', period)
@@ -191,7 +187,9 @@ def mostRecentMetaRecord(ip, ipv6, period):
             values['host'] = records['host']
         if 'config' in records:
             if 'site_name' in records['config']:
-                values['site_meta'] = records['config']['site_name']
+                values['site_meta'] = records['config']['site_name'].upper()
+            else: values['site_meta'] = ''
+        else: values['site_meta'] = ''
         if 'administrator' in records:
             if 'name' in records['administrator']:
                 values['administrator'] = records['administrator']['name']
