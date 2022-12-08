@@ -18,7 +18,7 @@ INDICES = ['ps_packetloss', 'ps_owd',
            'ps_retransmits', 'ps_throughput', 'ps_trace']
 
 user, passwd, mapboxtoken = None, None, None
-with open("/etc/ps-dash/creds.key") as f:
+with open("/config/config.json") as f:
     user = f.readline().strip()
     passwd = f.readline().strip()
     mapboxtoken = f.readline().strip()
