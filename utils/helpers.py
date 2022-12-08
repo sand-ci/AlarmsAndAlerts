@@ -18,7 +18,7 @@ INDICES = ['ps_packetloss', 'ps_owd',
            'ps_retransmits', 'ps_throughput', 'ps_trace']
 
 user, passwd, mapboxtoken = None, None, None
-with open("creds.key") as f:
+with open("/etc/ps-dash/creds.key") as f:
     user = f.readline().strip()
     passwd = f.readline().strip()
     mapboxtoken = f.readline().strip()
@@ -30,8 +30,8 @@ def ConnectES():
 
     try:
         es = Elasticsearch([{'host': 'atlas-kibana.mwt2.org', 'port': 9200, 'scheme': 'https'}],
-                           timeout=240, http_auth=credentials, max_retries=10)
-        print('Connected' if es.ping() == True else 'Fail to connect')
+                               timeout=240, http_auth=credentials, max_retries=10)
+        print('Success' if es.ping() == True else 'Fail')
         return es
     except Exception as error:
         print(">>>>>> Elasticsearch Client Error:", error)
