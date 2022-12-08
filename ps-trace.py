@@ -198,10 +198,12 @@ def fixMissingMetadata(rawDf):
     rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
                 columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
 
-    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
-    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
-    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
-    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
+    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
+    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
+    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
+
+    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='') & ~(rawDf['src_site'].isnull()) & ~(rawDf['dest_site'].isnull())]
 
     return rawDf
 

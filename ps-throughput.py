@@ -131,10 +131,10 @@ def fixMissingMetadata(rawDf):
     rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
                 columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
 
-    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
-    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
-    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
-    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
+    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
+    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
+    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
+    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
 
     return rawDf
 
@@ -151,17 +151,19 @@ def queryData(dateFrom, dateTo):
 
 
 def getStats(df, threshold):
+    print('before', len(df))
     df = fixMissingMetadata(df)
+    print('after', len(df))
     # convert to MB
     df['value'] = round(df['value']*1e-6)
     
     # split the data in 3 days
-    sitesDf = df.groupby(['src_site', 'dest_site', 'ipv', 'ipv6', pd.Grouper(key='dt', freq='4d')])['value'].mean().to_frame().reset_index()
+    sitesDf = df.groupby(['src_site', 'dest_site', 'ipv', 'ipv6', pd.Grouper(key='dt', freq='4d')], group_keys=False)['value'].mean().to_frame().reset_index()
     
     # get the statistics
-    sitesDf['z'] = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: round((x - x.mean())/x.std(),2))
-    stdDf = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: x.std()).to_frame().reset_index().rename(columns={'value':'std'})
-    stdDf['mean'] = sitesDf.groupby(['src_site','dest_site'])['value'].apply(lambda x: x.mean()).values
+    sitesDf['z'] = sitesDf.groupby(['src_site','dest_site'], group_keys=False)['value'].apply(lambda x: round((x - x.mean())/x.std(),2))
+    stdDf = sitesDf.groupby(['src_site','dest_site'], group_keys=False)['value'].apply(lambda x: x.std()).to_frame().reset_index().rename(columns={'value':'std'})
+    stdDf['mean'] = sitesDf.groupby(['src_site','dest_site'], group_keys=False)['value'].apply(lambda x: x.mean()).values
 
     sitesDf = pd.merge(sitesDf, stdDf, left_on=['src_site','dest_site'], right_on=['src_site','dest_site'], how='left')
 
@@ -180,7 +182,7 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     # below we find the total count of unique sites related to a single site name
     src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
     dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
-    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv', 'ipv6']).sum().reset_index()
+    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv', 'ipv6'], group_keys=False).sum().reset_index()
 
     # create the alarm objects
     alarmOnPair = alarms('Networking', 'Sites', alarmType)
@@ -244,7 +246,6 @@ booleanDictionary = {True: 'ipv6', False: 'ipv4'}
 rawDf['ipv'] = rawDf['ipv6'].map(booleanDictionary)
 
 # calculate the statistics
-statsDf = getStats(rawDf, 2)
 statsDf = getStats(rawDf, 2)
 statsDf['from'] = dateFrom
 statsDf['to'] = dateTo

@@ -605,15 +605,12 @@ def fixMissingMetadata(rawDf):
     rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').\
         rename(columns={'host': 'host_dest', 'site': 'site_dest'}).drop(columns=['ip'])
 
-    rawDf['site_src'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
-    rawDf['site_dest'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
-    rawDf['host_src'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
-    rawDf['host_dest'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
+    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
+    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
+    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
+    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
 
-    rawDf.rename(columns={'host_src': 'src_host', 'site_src': 'src_site',
-                          'host_dest': 'dest_host', 'site_dest': 'dest_site'}, inplace=True)
-
-    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='')]
+    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='') & ~(rawDf['src_site'].isnull()) & ~(rawDf['dest_site'].isnull())]
     return rawDf
 
 
@@ -693,13 +690,13 @@ def sendAlarms(data):
 
 
 # query the past 12 hours and split the period into 8 time ranges
-dateFrom, dateTo = hp.defaultTimeRange(24)
-data = runInParallel(dateFrom, dateTo)
-df = pd.DataFrame(data)
-print('Total number of documnets:', len(df))
-df['src_site'] = df['src_site'].str.upper()
-df['dest_site'] = df['dest_site'].str.upper()
-df['pair'] = df['src']+'-'+df['dest']
+# dateFrom, dateTo = hp.defaultTimeRange(24)
+# data = runInParallel(dateFrom, dateTo)
+# df = pd.DataFrame(data)
+# print('Total number of documnets:', len(df))
+# df['src_site'] = df['src_site'].str.upper()
+# df['dest_site'] = df['dest_site'].str.upper()
+# df['pair'] = df['src']+'-'+df['dest']
 
 # df = fixMissingMetadata(df)
 asn2ip, ip2asn, max_ttl = mapHopsAndASNs(df)
