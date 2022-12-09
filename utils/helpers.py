@@ -18,26 +18,13 @@ INDICES = ['ps_packetloss', 'ps_owd',
            'ps_retransmits', 'ps_throughput', 'ps_trace']
 
 user, passwd, mapboxtoken = None, None, None
-with open("/config/config.json") as f:
-    user = f.readline().strip()
-    passwd = f.readline().strip()
-    mapboxtoken = f.readline().strip()
+with open('/config/config.json') as json_data:
+    config = json.load(json_data,)
 
-
-def ConnectES():
-    global user, passwd
-    credentials = (user, passwd)
-
-    try:
-        es = Elasticsearch([{'host': 'atlas-kibana.mwt2.org', 'port': 9200, 'scheme': 'https'}],
-                               timeout=240, http_auth=credentials, max_retries=10)
-        print('Success' if es.ping() == True else 'Fail')
-        return es
-    except Exception as error:
-        print(">>>>>> Elasticsearch Client Error:", error)
-
-
-es = ConnectES()
+es = Elasticsearch(
+    hosts=[{'host': config['ES_HOST'], 'scheme':'https'}],
+    http_auth=(config['ES_USER'], config['ES_PASS']),
+    timeout=60)
 
 
 def timer(func):
