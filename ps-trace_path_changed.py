@@ -689,16 +689,16 @@ def sendAlarms(data):
         )
 
 
-# query the past 12 hours and split the period into 8 time ranges
-# dateFrom, dateTo = hp.defaultTimeRange(24)
-# data = runInParallel(dateFrom, dateTo)
-# df = pd.DataFrame(data)
-# print('Total number of documnets:', len(df))
-# df['src_site'] = df['src_site'].str.upper()
-# df['dest_site'] = df['dest_site'].str.upper()
-# df['pair'] = df['src']+'-'+df['dest']
+# query the past 24 hours and split the period into 8 time ranges
+dateFrom, dateTo = hp.defaultTimeRange(24)
+data = runInParallel(dateFrom, dateTo)
+df = pd.DataFrame(data)
+print('Total number of documnets:', len(df))
+df['src_site'] = df['src_site'].str.upper()
+df['dest_site'] = df['dest_site'].str.upper()
+df['pair'] = df['src']+'-'+df['dest']
 
-# df = fixMissingMetadata(df)
+df = fixMissingMetadata(df)
 asn2ip, ip2asn, max_ttl = mapHopsAndASNs(df)
 
 cricDict = getCricASNInfo()
@@ -752,8 +752,7 @@ diffs = getChanged(baseLine, compare2, updatedbaseLine, altsOfAlts, cricDict, cu
 saveStats(diffs, df, probDf, baseLine, updatedbaseLine, compare2)
 
 # Extract all seen ASNs
-asns = list(set([str(item) for diffList in diffs.values()
-            for item in diffList]))
+asns = list(set([str(item) for diffList in diffs.values() for item in diffList]))
 # Get the oweners of the ASNs
 asnInfo = getASNInfo(asns)
 # Build the dictinary of alarms where for each ASN, there is an owner, number of pairs and a list of affected sites
