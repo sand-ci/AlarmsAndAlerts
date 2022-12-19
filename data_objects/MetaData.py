@@ -83,7 +83,7 @@ class MetaData(object):
                 if len(lastRec) > 0:
                     # when there is no site name coming from the main indices or site has
                     # multiple locations like GRIF, get the name from ps_meta
-                    if (lastRec['site_meta'] is not None) and (item['site'] is None or item['site'] == 'GRIF'):
+                    if (lastRec['site_meta'] is not None) and (item['site'] is None or item['site'].isin(['GRIF', 'MWT2', 'AGLT2'])):
                         lastRec['site'] = lastRec['site_meta']
                     else:
                         lastRec['site'] = item['site']
