@@ -186,11 +186,11 @@ for (node, correction) in df_corr.values:
         site = ddf[ddf['dest_host'] == node]['dest_site'].values[0]
     tags = [node, site.upper()] if site is not None else [node]
 
-    # ALARM.addAlarm(
-    #     body=node+" "+str(correction),
-    #     tags=tags,
-    #     source={"node": node, "correction": correction, "from": dateFrom, "to": dateTo}
-    # )
+    ALARM.addAlarm(
+         body=node+" "+str(correction),
+         tags=tags,
+         source={"node": node, "correction": correction, "from": dateFrom, "to": dateTo}
+    )
 
 # print(df_hosts.shape, max(df_hosts.correction), min(df_hosts.correction))
 # plt.hist(df_hosts.correction, range=(
