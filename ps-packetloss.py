@@ -158,7 +158,7 @@ def sendSignificantLossAlarms(plsDf):
             src_sites = [l[0] for l in sign_ploss[(sign_ploss['dest_host']==host)][['src_site']].values.tolist()]
             src_loss = [l[0] for l in sign_ploss[(sign_ploss['dest_host']==host)][['avg_value%']].values.tolist()]   
 
-        toHash = ','.join([site, dateFrom, dateTo])
+        toHash = ','.join([site, host, dateFrom, dateTo])
         if all([1 if l == 100 else 0 for l in src_loss]) and len(dest_sites) == 0:
             doc = {"site": site, "host": host, "sites": src_sites,
                    "alarm_id": hashlib.sha224(toHash.encode('utf-8')).hexdigest(),
