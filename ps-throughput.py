@@ -191,36 +191,36 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     rows2Delete = []
 
 
+    if len(cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values) > 0:
+        for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
 
-    for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
+            subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
+            # build the lists of values
+            src_sites, dest_sites, src_change, dest_change = [],[],[],[]
 
-        subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
-        # build the lists of values
-        src_sites, dest_sites, src_change, dest_change = [],[],[],[]
+            for idx, row in subset.iterrows():
+                if row['src_site'] != site:
+                    src_sites.append(row['src_site'])
+                    src_change.append(row['%change'])
+                if row['dest_site'] != site:
+                    dest_sites.append(row['dest_site'])
+                    dest_change.append(row['%change'])
 
-        for idx, row in subset.iterrows():
-            if row['src_site'] != site:
-                src_sites.append(row['src_site'])
-                src_change.append(row['%change'])
-            if row['dest_site'] != site:
-                dest_sites.append(row['dest_site'])
-                dest_change.append(row['%change'])
+            all_vals = src_change + dest_change
+            above50 = [c for c in all_vals if abs(c)>=50]
 
-        all_vals = src_change + dest_change
-        above50 = [c for c in all_vals if abs(c)>=50]
+            if len(above50)>=minCount:
+                # create the alarm source content
+                doc = {'from': dateFrom, 'to': dateTo, 'ipv':ipvString, 'ipv6':ipv6,
+                       'dest_sites':dest_sites, 'dest_change':dest_change,
+                       'src_sites':src_sites, 'src_change':src_change}
+                doc['site'] = site
 
-        if len(above50)>=minCount:
-            # create the alarm source content
-            doc = {'from': dateFrom, 'to': dateTo, 'ipv':ipvString, 'ipv6':ipv6,
-                   'dest_sites':dest_sites, 'dest_change':dest_change, 
-                   'src_sites':src_sites, 'src_change':src_change}
-            doc['site'] = site
-            
-            toHash = ','.join([site, str(ipv6), dateFrom, dateTo])
-            doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-            # send the alarm with the proper message
-            alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
-            rows2Delete.extend(subset.index.values)
+                toHash = ','.join([site, str(ipv6), dateFrom, dateTo])
+                doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
+                # send the alarm with the proper message
+                # alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
+                rows2Delete.extend(subset.index.values)
 
     # delete the rows for which alarms were created
     alarmsDf = alarmsDf.drop(rows2Delete)
