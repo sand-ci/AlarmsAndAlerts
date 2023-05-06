@@ -180,9 +180,13 @@ def getStats(df, threshold):
 def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
+    print(f'\n Number of events: {len(alarmsDf)} ({alarmType})')
+    print(alarmsDf[['src_site', 'dest_site', 'ipv', 'z', '%change']])
     src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
     dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
-    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site','ipv', 'ipv6'], group_keys=False).sum().reset_index()
+    cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site', 'ipv', 'ipv6'], group_keys=False).sum().reset_index()
+    print('\n --- Site invlovement --- ')
+    print(cntDf)
 
     # create the alarm objects
     alarmOnPair = alarms('Networking', 'Sites', alarmType)
@@ -191,36 +195,35 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     rows2Delete = []
 
 
-    if len(cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values) > 0:
-        for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
+    for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
 
-            subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
-            # build the lists of values
-            src_sites, dest_sites, src_change, dest_change = [],[],[],[]
+        subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
+        # build the lists of values
+        src_sites, dest_sites, src_change, dest_change = [],[],[],[]
 
-            for idx, row in subset.iterrows():
-                if row['src_site'] != site:
-                    src_sites.append(row['src_site'])
-                    src_change.append(row['%change'])
-                if row['dest_site'] != site:
-                    dest_sites.append(row['dest_site'])
-                    dest_change.append(row['%change'])
+        for idx, row in subset.iterrows():
+            if row['src_site'] != site:
+                src_sites.append(row['src_site'])
+                src_change.append(row['%change'])
+            if row['dest_site'] != site:
+                dest_sites.append(row['dest_site'])
+                dest_change.append(row['%change'])
 
-            all_vals = src_change + dest_change
-            above50 = [c for c in all_vals if abs(c)>=50]
+        all_vals = src_change + dest_change
+        above50 = [c for c in all_vals if abs(c)>=50]
 
-            if len(above50)>=minCount:
-                # create the alarm source content
-                doc = {'from': dateFrom, 'to': dateTo, 'ipv':ipvString, 'ipv6':ipv6,
-                       'dest_sites':dest_sites, 'dest_change':dest_change,
-                       'src_sites':src_sites, 'src_change':src_change}
-                doc['site'] = site
+        if len(above50)>=minCount:
+            # create the alarm source content
+            doc = {'from': dateFrom, 'to': dateTo, 'ipv':ipvString, 'ipv6':ipv6,
+                   'dest_sites':dest_sites, 'dest_change':dest_change,
+                   'src_sites':src_sites, 'src_change':src_change}
+            doc['site'] = site
 
-                toHash = ','.join([site, str(ipv6), dateFrom, dateTo])
-                doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-                # send the alarm with the proper message
-                # alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
-                rows2Delete.extend(subset.index.values)
+            toHash = ','.join([site, str(ipv6), dateFrom, dateTo])
+            doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
+            # send the alarm with the proper message
+            alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
+            rows2Delete.extend(subset.index.values)
 
     # delete the rows for which alarms were created
     alarmsDf = alarmsDf.drop(rows2Delete)
@@ -235,6 +238,7 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
 now = datetime.utcnow()
 dateTo = datetime.strftime(now, '%Y-%m-%d %H:%M')
 dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%d %H:%M')
+print(f'----- {dateFrom} - {dateTo} ----- ')
 
 # get the data
 rawDf = pd.DataFrame(queryData(dateFrom, dateTo))
