@@ -182,8 +182,8 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     # below we find the total count of unique sites related to a single site name
     print(f'\n Number of events: {len(alarmsDf)} ({alarmType})')
     print(alarmsDf[['src_site', 'dest_site', 'ipv', 'z', '%change']])
-    src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'src_site': 'site'})
-    dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={0:'cnt', 'dest_site': 'site'})
+    src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={'src_site': 'site'})
+    dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={'dest_site': 'site'})
     cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site', 'ipv', 'ipv6'], group_keys=False).sum().reset_index()
     print('\n --- Site invlovement --- ')
     print(cntDf)
@@ -194,8 +194,7 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
 
     rows2Delete = []
 
-
-    for site, ipvString, ipv6 in cntDf[cntDf['cnt']>=minCount][['site','ipv', 'ipv6']].values:
+    for site, ipvString, ipv6 in cntDf[cntDf['count']>=minCount][['site','ipv', 'ipv6']].values:
 
         subset = alarmsDf[((alarmsDf['src_site']==site)|(alarmsDf['dest_site']==site))&(alarmsDf['ipv']==ipvString)]
         # build the lists of values
