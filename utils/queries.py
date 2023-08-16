@@ -4,9 +4,8 @@ import pandas as pd
 
 
 valueField = {
-            'ps_packetloss': 'packet_loss',
+            'ps_packetloss': 'packet-loss',
             'ps_owd': 'delay_mean',
-            'ps_retransmits': 'retransmits',
             'ps_throughput': 'throughput'
             }
 
