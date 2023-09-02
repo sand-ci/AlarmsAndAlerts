@@ -16,6 +16,7 @@ def loadPacketLossData(dateFrom, dateTo):
     for i in range(len(time_list)-1):
         data.extend(qrs.query4Avg('ps_packetloss', time_list[i], time_list[i+1]))
 
+    print(f'Period: {dateFrom} - {dateTo}, number of tests: {len(data)}')
     return pd.DataFrame(data)
 
 
