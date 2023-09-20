@@ -34,7 +34,9 @@ def queryPSTrace(dt):
     # print(str(query).replace("\'", "\""))
     try:
         return scan_gen(scan(hp.es, index="ps_trace", query=query,
-                             filter_path=['_scroll_id', '_shards', 'hits.hits._source']))
+                             filter_path=['_scroll_id', '_shards', 'hits.hits._source'],
+                             _source=['timestamp', 'src_netsite', 'dest_netsite', 'src', 'dest',  'src_host', 'dest_host', \
+                                      'destination_reached', 'asns', 'hops', 'pair', 'ttls']))
     except Exception as e:
         print(e)
 
@@ -96,31 +98,36 @@ def mapHopsAndASNs(df):
     subset = df[['asns', 'hops', 'pair', 'ttls']].values.tolist()
     # max_ttl is needed when we later build a dataframe where each column is a ttl number
     max_ttl = 0
+    try:
+        for asns, hops, pair, ttls in subset:
+            if ttls:
+                if max(ttls) > max_ttl:
+                    max_ttl = max(ttls)
 
-    for asns, hops, pair, ttls in subset:
-        if ttls:
-            if max(ttls) > max_ttl:
-                max_ttl = max(ttls)
+            if len(asns) == len(hops):
+                for i in range(len(asns)):
+                    if asns[i] not in asn2ip.keys():
+                        asn2ip[asns[i]] = [hops[i]]
+                    else:
+                        temp = asn2ip[asns[i]]
+                        if hops[i] not in temp:
+                            temp.append(hops[i])
+                            asn2ip[asns[i]] = temp
 
-        if len(asns) == len(hops):
-            for i in range(len(asns)):
-                if asns[i] not in asn2ip.keys():
-                    asn2ip[asns[i]] = [hops[i]]
-                else:
-                    temp = asn2ip[asns[i]]
-                    if hops[i] not in temp:
-                        temp.append(hops[i])
-                        asn2ip[asns[i]] = temp
+                    if hops[i] not in ip2asn.keys():
+                        ip2asn[hops[i]] = []
 
-                if hops[i] not in ip2asn.keys():
-                    ip2asn[hops[i]] = []
+                    if asns[i] not in ip2asn[hops[i]]:
+                        ip2asn[hops[i]].append(asns[i])
 
-                if asns[i] not in ip2asn[hops[i]]:
-                    ip2asn[hops[i]].append(asns[i])
+            else:
+                print('Size of hops and ASNs differ. This should not happen')
+                strange.append([pair, asns, hops])
 
-        else:
-            print('Size of hops and ASNs differ. This should not happen')
-            strange.append([pair, asns, hops])
+    except Exception as e:
+        print(e)
+        print(asns, hops, pair, ttls)
+
     return asn2ip, ip2asn, max_ttl
 
 
@@ -136,7 +143,7 @@ def fix0ASNs(df):
 
     relDf['asns_updated'] = relDf['asns']
 
-    print('Attempt to fix unknown ASNs based on mapped IP addresses...')
+    # print('Attempt to fix unknown ASNs based on mapped IP addresses...')
     c = 0
 
     try:
@@ -178,6 +185,7 @@ def fix0ASNs(df):
         print(f'{len(zfix)} zeros successfully replaced with AS numbers.', flush=True)
         return relDf
     except Exception as e:
+        print(idx, asns, hops, s, d)
         print(e, traceback.format_exc())
 
 
@@ -595,25 +603,6 @@ def aggResultsBasedOnSites(diffs, asnInfo, dateFrom, dateTo):
 
     return alarmsList
 
-
-# Fill in hosts and site names where missing by quering the ps_alarms_meta index
-@timer
-def fixMissingMetadata(rawDf):
-    metaDf = qrs.getMetaData()
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').\
-        rename(columns={'host': 'host_src', 'site': 'site_src'}).drop(columns=['ip'])
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').\
-        rename(columns={'host': 'host_dest', 'site': 'site_dest'}).drop(columns=['ip'])
-
-    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
-    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
-    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
-    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
-
-    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='') & ~(rawDf['src_site'].isnull()) & ~(rawDf['dest_site'].isnull())]
-    return rawDf
-
-
 # Grabs the R&E ASNs and their owners from ES
 @timer
 def getASNInfo(ids):
@@ -690,15 +679,16 @@ def sendAlarms(data):
 
 
 # query the past 24 hours and split the period into 8 time ranges
-dateFrom, dateTo = hp.defaultTimeRange(24)
+dateFrom, dateTo = hp.defaultTimeRange(72)
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
-print('Total number of documnets:', len(df))
-df['src_site'] = df['src_site'].str.upper()
-df['dest_site'] = df['dest_site'].str.upper()
-df['pair'] = df['src']+'-'+df['dest']
 
-df = fixMissingMetadata(df)
+print('Total number of documnets:', len(df))
+df.loc[:, 'src_site'] = df['src_netsite'].str.upper()
+df.loc[:, 'dest_site'] = df['dest_netsite'].str.upper()
+df.loc[:, 'pair'] = df['src']+'-'+df['dest']
+df = df[~(df['src_site'].isnull()) & ~(df['dest_site'].isnull()) & ~(df['asns'].isnull())]
+
 asn2ip, ip2asn, max_ttl = mapHopsAndASNs(df)
 
 cricDict = getCricASNInfo()

@@ -27,8 +27,9 @@ es = Elasticsearch(
 
 es.ping()
 
+
 my_query = {
-    '_source': ['delay_mean', 'dest_host', 'src_host', 'src_site', 'dest_site'],
+    '_source': ['delay_mean', 'dest_host', 'src_host', 'src_netsite', 'dest_netsite'],
     'query': {
         'bool': {
             'must': [{
@@ -55,8 +56,8 @@ for r in res:
     delay_mean.append(r.get('_source').get('delay_mean'))
     dest_host.append(r.get('_source').get('dest_host'))
     src_host.append(r.get('_source').get('src_host'))
-    src_site.append(r.get('_source').get('src_site'))
-    dest_site.append(r.get('_source').get('dest_site'))
+    src_site.append(r.get('_source').get('src_netsite'))
+    dest_site.append(r.get('_source').get('dest_netsite'))
     count += 1
     if not count % 100000:
         print(count)

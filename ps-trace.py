@@ -46,7 +46,7 @@ from alarms import alarms
 # the query
 
 
-def queryPSTrace(dt, include=["timestamp", "destination_reached", "src", "dest", "src_host", "dest_host", "src_site", "dest_site", "looping", "path_complete", 'ipv6']):
+def queryPSTrace(dt, include=["timestamp", "destination_reached", "src", "dest", "src_host", "dest_host", "src_netsite", "dest_netsite", "looping", "path_complete", 'ipv6']):
     query = {
         "query": {
             "bool": {
@@ -188,37 +188,15 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dat
         alarm.addAlarm(body=f"{alarmType} host", tags=[site], source=doc)
 
 
-
-# Fill in hosts and site names where missing by quering the ps_alarms_meta index
-def fixMissingMetadata(rawDf):
-    metaDf = qrs.getMetaData()
-    rawDf['pair'] = rawDf['src']+rawDf['dest']
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
-                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
-                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
-
-    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
-    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
-    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
-    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
-
-    rawDf = rawDf[(rawDf['src_site']!='') & (rawDf['dest_site']!='') & ~(rawDf['src_site'].isnull()) & ~(rawDf['dest_site'].isnull())]
-
-    return rawDf
-
-
 dateFrom, dateTo = hp.defaultTimeRange(24)
 dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
 
 # print(dateFrom, dateTo)
 run(dateFrom, dateTo)
 df = pd.DataFrame(list(data))
-df['src_site'] = df['src_site'].str.upper()
-df['dest_site'] = df['dest_site'].str.upper()
+df['src_site'] = df['src_netsite'].str.upper()
+df['dest_site'] = df['dest_netsite'].str.upper()
 
-# get all necessary data for the nodes and fill it in the raw data from ps_trace in order to repair missing information
-df = fixMissingMetadata(df)
 df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df['dest'] != '')]
 
 # create the alarm types
@@ -251,4 +229,4 @@ issuesWithMultipleSites(start='dest',
                         alarmType="destination cannot be reached from multiple",
                         dateFrom=dateFrom,
                         dateTo=dateTo)
-# issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
+issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)

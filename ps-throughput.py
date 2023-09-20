@@ -122,23 +122,6 @@ def query4Avg(dateFrom, dateTo):
     return aggrs
 
 
-# Fill in hosts and site names where missing by quering the ps_alarms_meta index
-def fixMissingMetadata(rawDf):
-    metaDf = qrs.getMetaData()
-    rawDf['pair'] = rawDf['src']+rawDf['dest']
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
-                columns={'host':'host_src','site':'site_src'}).drop(columns=['ip'])
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
-                columns={'host':'host_dest','site':'site_dest'}).drop(columns=['ip'])
-
-    rawDf['src_site'] = rawDf['site_src'].fillna(rawDf.pop('src_site'))
-    rawDf['dest_site'] = rawDf['site_dest'].fillna(rawDf.pop('dest_site'))
-    rawDf['src_host'] = rawDf['host_src'].fillna(rawDf.pop('src_host'))
-    rawDf['dest_host'] = rawDf['host_dest'].fillna(rawDf.pop('dest_host'))
-
-    return rawDf
-
-
 def queryData(dateFrom, dateTo):
     data = []
     # query in portions since ES does not allow aggregations with more than 10000 bins
@@ -151,9 +134,6 @@ def queryData(dateFrom, dateTo):
 
 
 def getStats(df, threshold):
-    print('before', len(df))
-    df = fixMissingMetadata(df)
-    print('after', len(df))
     # convert to MB
     df['value'] = round(df['value']*1e-6)
     
