@@ -189,7 +189,6 @@ def issuesWithMultipleSites(start, threshold, nrHosts, df, alarm, alarmType, dat
 
 
 dateFrom, dateTo = hp.defaultTimeRange(24)
-dateFromF, dateToF = dateFrom.replace(' ','T'), dateTo.replace(' ','T')
 
 # print(dateFrom, dateTo)
 run(dateFrom, dateTo)
@@ -197,7 +196,9 @@ df = pd.DataFrame(list(data))
 df['src_site'] = df['src_netsite'].str.upper()
 df['dest_site'] = df['dest_netsite'].str.upper()
 
-df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df['dest'] != '')]
+
+df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df['dest'] != '') & \
+        ~(df['src_netsite'].isnull()) & (df['src_netsite'] != '') & ~(df['dest_netsite'].isnull()) & (df['dest_netsite'] != '')]
 
 # create the alarm types
 alarmDestHostsCantBeReachedFromAny = alarms(
@@ -219,7 +220,7 @@ SrcHostsCantReachAny = findConstantIssuesOnOneEnd(start='src',
                                                        alarm=alarmSrcHostsCantReachAny,
                                                        alarmType="source cannot reach any",
                                                        dateFrom=dateFrom, 
-                                                       dateTo=dateToF)
+                                                       dateTo=dateTo)
 
 issuesWithMultipleSites(start='dest',
                         threshold=20,
