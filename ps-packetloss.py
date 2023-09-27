@@ -8,13 +8,127 @@ from utils.helpers import timer
 
 
 
+
+def query4Avg(dateFrom, dateTo):
+    query = {
+            "bool" : {
+              "must" : [
+                {
+                  "range" : {
+                    "timestamp" : {
+                      "gt" : dateFrom,
+                      "lte": dateTo
+                    }
+                  }
+                },
+                {
+                  "term" : {
+                    "src_production" : True
+                  }
+                },
+                {
+                  "term" : {
+                    "dest_production" : True
+                  }
+                }
+              ]
+            }
+          }
+
+    aggregations = {
+                "groupby" : {
+                  "composite" : {
+                    "size" : 9999,
+                    "sources" : [
+                      {
+                        "ipv6" : {
+                          "terms" : {
+                            "field" : "ipv6"
+                          }
+                        }
+                      },
+                      {
+                        "src" : {
+                          "terms" : {
+                            "field" : "src"
+                          }
+                        }
+                      },
+                      {
+                        "dest" : {
+                          "terms" : {
+                            "field" : "dest"
+                          }
+                        }
+                      },
+                      {
+                        "src_host" : {
+                          "terms" : {
+                            "field" : "src_host"
+                          }
+                        }
+                      },
+                      {
+                        "dest_host" : {
+                          "terms" : {
+                            "field" : "dest_host"
+                          }
+                        }
+                      },
+                      {
+                        "src_site" : {
+                          "terms" : {
+                            "field" : "src_netsite"
+                          }
+                        }
+                      },
+                      {
+                        "dest_site" : {
+                          "terms" : {
+                            "field" : "dest_netsite"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "aggs": {
+                    "packet_loss": {
+                      "avg": {
+                        "field": "packet_loss"
+                      }
+                    }
+                  }
+                }
+              }
+
+    # print(idx, str(query).replace("\'", "\""))
+    # print(str(aggregations).replace("\'", "\""))
+
+    aggrs = []
+
+    aggdata = hp.es.search(index='ps_packetloss', query=query, aggregations=aggregations)
+    for item in aggdata['aggregations']['groupby']['buckets']:
+        aggrs.append({'pair': str(item['key']['src']+'-'+item['key']['dest']),
+                      'from':dateFrom, 'to':dateTo,
+                      'ipv6': item['key']['ipv6'],
+                      'src': item['key']['src'], 'dest': item['key']['dest'],
+                      'src_host': item['key']['src_host'], 'dest_host': item['key']['dest_host'],
+                      'src_site': item['key']['src_site'], 'dest_site': item['key']['dest_site'],
+                      'value': item['packet_loss']['value'],
+                      'doc_count': item['doc_count']
+                     })
+
+    return aggrs
+
+
 @timer
 def loadPacketLossData(dateFrom, dateTo):
     data = []
     intv = int(hp.CalcMinutes4Period(dateFrom, dateTo)/60)
     time_list = hp.GetTimeRanges(dateFrom, dateTo, intv)
+
     for i in range(len(time_list)-1):
-        data.extend(qrs.query4Avg('ps_packetloss', time_list[i], time_list[i+1]))
+        data.extend(query4Avg(time_list[i], time_list[i+1]))
 
     print(f'Period: {dateFrom} - {dateTo}, number of tests: {len(data)}')
     return pd.DataFrame(data)
@@ -46,8 +160,6 @@ def markPairs(dateFrom, dateTo):
     grouped = tempdf.groupby(['src', 'dest', 'pair', 'src_host', 'dest_host', 'src_site', 'dest_site']).agg(
         {'value': lambda x: x.mean(skipna=False)}, axis=1).reset_index()
 
-    grouped = fixMissingMetadata(grouped)
-
     # calculate the percentage of measures based on the assumption that ideally measures are done once every minute
     grouped = getPercentageMeasuresDone(grouped, tempdf)
 
@@ -70,22 +182,6 @@ def markPairs(dateFrom, dateTo):
     df = df.round({'avg_value': 3})
 
     return df
-
-
-@timer
-def fixMissingMetadata(rawDf):
-    metaDf = qrs.getMetaData()
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='src', how='right').rename(
-        columns={'host': 'host_src', 'site': 'site_src'}).drop(columns=['ip'])
-    rawDf = pd.merge(metaDf[['host', 'ip', 'site']], rawDf, left_on='ip', right_on='dest', how='right').rename(
-        columns={'host': 'host_dest', 'site': 'site_dest'}).drop(columns=['ip'])
-
-    rawDf['src_site'] = rawDf['src_site'].fillna(rawDf.pop('site_src'))
-    rawDf['dest_site'] = rawDf['dest_site'].fillna(rawDf.pop('site_dest'))
-    rawDf['src_host'] = rawDf['src_host'].fillna(rawDf.pop('host_src'))
-    rawDf['dest_host'] = rawDf['dest_host'].fillna(rawDf.pop('host_dest'))
-
-    return rawDf
 
 
 def findMultiSiteIssues(sign_ploss, threshold=5):
