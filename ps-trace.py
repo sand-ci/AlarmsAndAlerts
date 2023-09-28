@@ -230,4 +230,3 @@ issuesWithMultipleSites(start='dest',
                         alarmType="destination cannot be reached from multiple",
                         dateFrom=dateFrom,
                         dateTo=dateTo)
-issuesWithMultipleSites(start='src', threshold=20, nrHosts=SrcHostsCantReachAny)
