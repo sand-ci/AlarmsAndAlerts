@@ -718,9 +718,27 @@ updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
 
 # Ignore sites for which we know there's an issue
-ignore_list = ['ATLAS-CBPF', 'NCP-LCG2', 'UTA_SWT2', 'RRC_KI', 'CBPF', 'IN2P3-CC', 'JINR-LCG2', 'EELA-UTFSM',
-               'JINR-T1', 'RRC-KI-T1', 'RRC-KI', 'ITEP', 'RU-Protvino-IHEP', 'BEIJING-LCG2', 'IHEP',
-               'IN2P3-CC', 'UTA_SWT2']
+ignore_list = [  'ATLAS-CBPF',
+                 'BEIJING-LCG2',
+                 'CBPF',
+                 'EELA-UTFSM',
+                 'IHEP',
+                 'IN2P3-CC',
+                 'ITEP',
+                 'ITEP-LHCONE',
+                 'JINR-LCG2',
+                 'JINR-LCG2-LHCONE',
+                 'JINR-T1',
+                 'JINR-T1-LHCOPNE',
+                 'KHARKOV-KIPT-LCG2-LHCONE',
+                 'NCP-LCG2',
+                 'RRC-KI',
+                 'RRC-KI-T1',
+                 'RRC_KI',
+                 'RU-PROTVINO-IHEP-LHCONE',
+                 'RU-Protvino-IHEP',
+                 'UAM-LCG2-LHCONE',
+                 'UTA_SWT2']
 cut = compare2[(~compare2['src_site'].isin(ignore_list)) & (~compare2['dest_site'].isin(ignore_list))]
 
 # Get the pairs which took different form the usual paths
