@@ -154,15 +154,8 @@ def getPercentageMeasuresDone(grouped, tempdf):
 
 @timer
 def markPairs(dateFrom, dateTo):
-    df = pd.DataFrame()
-
-    tempdf = loadPacketLossData(dateFrom, dateTo)
-    grouped = tempdf.groupby(['src', 'dest', 'pair', 'src_host', 'dest_host', 'src_site', 'dest_site']).agg(
-        {'value': lambda x: x.mean(skipna=False)}, axis=1).reset_index()
-
-    # calculate the percentage of measures based on the assumption that ideally measures are done once every minute
-    grouped = getPercentageMeasuresDone(grouped, tempdf)
-
+    dataDf = loadPacketLossData(dateFrom, dateTo)
+    df = getPercentageMeasuresDone(dataDf, dateFrom, dateTo)
     # set value to 0 - we consider there is no issue bellow 2% loss
     # set value to 1 - the pair is marked problematic between 2% and 100% loss
     # set value to 2 - the pair shows 100% loss
@@ -173,11 +166,9 @@ def markPairs(dateFrom, dateTo):
             return 1
         elif x == 1:
             return 2
-        return 'something is wrong'
+        return 'Value is not in range [0,1]'
 
-    grouped['flag'] = grouped['value'].apply(lambda val: setFlag(val))
-
-    df = pd.concat([df, grouped], ignore_index=True)
+    df['flag'] = df['value'].apply(lambda val: setFlag(val))
     df.rename(columns={'value': 'avg_value'}, inplace=True)
     df = df.round({'avg_value': 3})
 
