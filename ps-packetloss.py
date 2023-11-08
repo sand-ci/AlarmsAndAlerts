@@ -17,7 +17,8 @@ def query4Avg(dateFrom, dateTo):
                   "range" : {
                     "timestamp" : {
                       "gt" : dateFrom,
-                      "lte": dateTo
+                      "lte": dateTo,
+                      "format": "epoch_millis"
                     }
                   }
                 },
@@ -134,8 +135,8 @@ def loadPacketLossData(dateFrom, dateTo):
     return pd.DataFrame(data)
 
 
-def getPercentageMeasuresDone(grouped, tempdf):
-    measures_done = tempdf.groupby('pair').agg({'doc_count': 'sum'})
+def getPercentageMeasuresDone(dataDf, dateFrom, dateTo):
+    measures_done = dataDf.groupby('pair').agg({'doc_count': 'sum'})
 
     def findRatio(row, total_minutes):
         if pd.isna(row['doc_count']):
@@ -147,9 +148,10 @@ def getPercentageMeasuresDone(grouped, tempdf):
     one_test_per_min = hp.CalcMinutes4Period(dateFrom, dateTo)
     measures_done['tests_done'] = measures_done.apply(
         lambda x: findRatio(x, one_test_per_min), axis=1)
-    grouped = pd.merge(grouped, measures_done, on='pair', how='left')
 
-    return grouped
+    merged = pd.merge(dataDf, measures_done, on='pair', how='left')
+
+    return merged
 
 
 @timer

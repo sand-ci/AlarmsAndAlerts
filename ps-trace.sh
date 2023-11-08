@@ -1,7 +1,7 @@
 #!/bin/bash
 date
-python ps-trace.py
+python routers.py
 rc=$?; if [[ $rc != 0 ]]; then 
-    echo "problem running traceroute. Exiting."
+    echo "problem running routers. Exiting."
     exit $rc
 fi
