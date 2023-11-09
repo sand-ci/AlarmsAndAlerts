@@ -359,7 +359,7 @@ def buildRoutersDataset(dt):
 
     
     result = []
-    with ProcessPoolExecutor(max_workers=20) as pool:
+    with ProcessPoolExecutor(max_workers=5) as pool:
         # print('Starting parallel processing....')
         result = pool.map(pathsAndRoutersData, zipped_data)
 
