@@ -23,7 +23,8 @@ def queryPSTrace(dt):
                         "range": {
                             "timestamp": {
                                 "gt": dt[0],
-                                "lte": dt[1]
+                                "lte": dt[1],
+                                "format": "epoch_millis"
                             }
                         }
                     }
@@ -65,7 +66,6 @@ def getTraceData(dtRange):
     traceData = ps_trace(dtRange)
     if len(traceData) > 0:
         print(f'For {dtRange} fetched: {len(traceData)}')
-        # data.extend(traceData)
     return traceData
 
 
@@ -627,15 +627,14 @@ def getASNInfo(ids):
 def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
     def getPaths(fld, ddf):
         temp = {}
+        ddf['hash_freq'] = ddf['hash_freq'].round(2)
         if len(ddf)>0:
             temp[fld] = ddf[['asns_updated', 'cnt_total_measures', 'path_always_reaches_dest', 'hash_freq']].\
                 to_dict('records')
         return temp
 
-    probDf = probDf.round(2)
-    baseLine = baseLine.round(2)
-    updatedbaseLine = updatedbaseLine.round(2)
-    compare2 = compare2.round(2)
+    probDf['P'] = probDf['P'].round(2)
+    probDf['asn'] = probDf['asn'].astype('int')
 
     alarmsData = []
     for pair, diff in diffs.items():
@@ -643,7 +642,7 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         # prepare the data for ES - adding _id and _index to send in bulk
         temp['from_date'] = dateFrom
         temp['to_date'] = dateTo
-        temp['_index'] = 'ps_trace_changes'
+        temp['_index'] = 'ps_traces_changes'
         temp['diff'] = diff
         temp.update(baseLine[baseLine['pair']==pair]
                             [['src', 'dest', 'src_host', 'dest_host', 'src_site', 'dest_site']].to_dict('records')[0])
@@ -651,9 +650,10 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         temp.update(getPaths('baseline', baseLine[baseLine['pair']==pair]))
         temp.update(getPaths('second_baseline', updatedbaseLine[updatedbaseLine['pair']==pair]))
         temp.update(getPaths('alt_paths', compare2[compare2['pair']==pair]))
-        temp['positions'] = probDf[probDf['pair']==pair][['asn', 'pos', 'P']].round(2).to_dict('records')
+        temp['positions'] = probDf[probDf['pair']==pair][['asn', 'pos', 'P']].to_dict('records')
 
         alarmsData.append(temp)
+
 
     print(f'Number of docs: {len(alarmsData)}')
 
@@ -712,7 +712,7 @@ baseLine, compare2 = getBaseline(valid)
 # T1 = ['BNL-ATLAS', 'FZK-LCG2', 'IN2P3-CC', 'INFN-T1', 'JINR-T1', 'KR-KISTI-GSDC-01', 'NDGF-T1', 'NIKHEF-ELPROD',
 #       'pic', 'RAL-LCG2', 'RRC-KI-T1', 'SARA-MATRIX', 'Taiwan-LCG2', 'TRIUMF-LCG2', 'USCMS-FNAL-WC1']
 # limit t emporarily to the known site having load balancing
-T1 = ['PIC', 'pic', 'Taiwan-LCG2']
+T1 = ['PIC', 'TAIWAN-LCG2']
 t1s = compare2[(compare2['src_site'].isin(T1)) & (compare2['dest_site'].isin(T1))]
 updatedbaseLine, updatedcompare2 = getBaseline(t1s)
 
