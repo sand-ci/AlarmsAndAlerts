@@ -59,24 +59,19 @@ def parallelPandas(function):
     return wrapper
 
 
-def convertTime(ts):
-    if pd.notnull(ts):
-        return datetime.utcfromtimestamp(ts/1000).strftime('%Y-%m-%d %H:%M')
-
-
 '''Returns a period of the past 3 hours'''
 def defaultTimeRange(hours=3):
     now = datetime.utcnow()
-    defaultEnd = datetime.strftime(now, '%Y-%m-%d %H:%M')
+    defaultEnd = datetime.strftime(now,"%Y-%m-%dT%H:%M:%S.000Z")
     defaultStart = datetime.strftime(
-        now - timedelta(hours=hours), '%Y-%m-%d %H:%M')
+        now - timedelta(hours=hours), "%Y-%m-%dT%H:%M:%S.000Z")
 
     return [defaultStart, defaultEnd]
 
 
 '''Finds the difference between two dates'''
 def FindPeriodDiff(dateFrom, dateTo):
-    fmt = '%Y-%m-%d %H:%M'
+    fmt = '%Y-%m-%dT%H:%M:%S.000Z'
     d1 = datetime.strptime(dateFrom, fmt)
     d2 = datetime.strptime(dateTo, fmt)
     time_delta = d2-d1
@@ -87,7 +82,7 @@ def FindPeriodDiff(dateFrom, dateTo):
 '''Splits the period into chunks of specified number of intervals.'''
 def GetTimeRanges(dateFrom, dateTo, intv=1):
     diff = FindPeriodDiff(dateFrom, dateTo) / intv
-    t_format = "%Y-%m-%d %H:%M"
+    t_format = '%Y-%m-%dT%H:%M:%S.000Z'
     tl = []
     for i in range(intv+1):
         t = (datetime.strptime(dateFrom, t_format) + diff * i).strftime(t_format)
