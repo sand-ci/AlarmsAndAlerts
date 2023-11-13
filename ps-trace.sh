@@ -1,6 +1,6 @@
 #!/bin/bash
 date
-python routers.py
+python ps-trace.py
 rc=$?; if [[ $rc != 0 ]]; then 
     echo "problem running routers. Exiting."
     exit $rc
