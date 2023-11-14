@@ -289,7 +289,7 @@ def sendCompleteLossAlarms(plsDf, cols):
     for dest, cnt in completeLossDestAgg.values:
         if totalNum[totalNum['dest_host']==dest]['cnt'].values[0]==cnt or cnt>=10:
             site = complete_ploss[complete_ploss['dest_host']==dest]['dest_site'].unique()[0]
-            site_list = complete_ploss[complete_ploss['dest_host']==dest]['src_site'].unique()
+            site_list = complete_ploss[complete_ploss['dest_host']==dest]['src_site'].unique().tolist()
             toHash = ','.join([site, 'complete loss', dateFrom, dateTo])
             doc = {"site": site, "host": dest, "sites": site_list,
                    "alarm_id": hashlib.sha224(toHash.encode('utf-8')).hexdigest(),

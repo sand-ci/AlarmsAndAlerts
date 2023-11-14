@@ -215,8 +215,8 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
-dateTo = datetime.strftime(now, '%Y-%m-%d %H:%M')
-dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%d %H:%M')
+dateTo = datetime.strftime(now, '%Y-%m-%dT%H:%M:%S.000Z')
+dateFrom = datetime.strftime(now - timedelta(days=21), '%Y-%m-%dT%H:%M:%S.000Z')
 print(f'----- {dateFrom} - {dateTo} ----- ')
 
 # get the data

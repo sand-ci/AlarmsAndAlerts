@@ -379,22 +379,9 @@ def buildRoutersDataset(dt):
 
 
 
-def gendata(router_list):
-    for i, doc in enumerate(router_list):
-        d=  {
-            "_index": "routers",
-            "_source": doc,
-        }
-
-        yield d
-
-
-
 def sendToES(router_list):
-    for success, info in parallel_bulk(hp.es, gendata(router_list)):
-        if not success:
-            print('A document failed:', info)
-
+    bulk(hp.es, router_list, index='routers')
+    print(f'Inserted {len(router_list)} documents')
 
 
 past12h = get_past_12_hours()
