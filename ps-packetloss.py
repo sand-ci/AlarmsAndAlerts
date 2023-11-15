@@ -216,7 +216,7 @@ def findMultiSiteIssues(sign_ploss, threshold=5):
 
 def sendSignificantLossAlarms(plsDf, cols):
     sign_ploss = plsDf[(plsDf['flag'] == 1)][cols].groupby(cols[:-1]).mean().reset_index()
-    sign_ploss['avg_value%'] = round(sign_ploss['avg_value']*100, 1)
+    sign_ploss['avg_value'] = round(sign_ploss['avg_value']*100, 1)
 
     # Create the alarm types
     alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
@@ -243,12 +243,12 @@ def sendSignificantLossAlarms(plsDf, cols):
 
 
         if not sign_ploss[(sign_ploss['src_host']==host)][['dest_site']].empty:
-            values = sign_ploss[(sign_ploss['src_host']==host)][['dest_site','avg_value%']].values.tolist()
+            values = sign_ploss[(sign_ploss['src_host']==host)][['dest_site','avg_value']].values.tolist()
             dest_sites = [l[0] for l in values]
             dest_loss = [l[1] for l in values]
 
         if not sign_ploss[(sign_ploss['dest_host']==host)][['src_site']].empty:
-            values = sign_ploss[(sign_ploss['dest_host']==host)][['src_site','avg_value%']].values.tolist()
+            values = sign_ploss[(sign_ploss['dest_host']==host)][['src_site','avg_value']].values.tolist()
             src_sites = [l[0] for l in values]
             src_loss = [l[1] for l in values]
 
@@ -262,7 +262,7 @@ def sendSignificantLossAlarms(plsDf, cols):
         else:
             doc = {"site": site, "host": host, "from": dateFrom, "to": dateTo,
                    "alarm_id": hashlib.sha224(toHash.encode('utf-8')).hexdigest(),
-                   "dest_sites": dest_sites, "dest_loss%": dest_loss, "src_sites": src_sites, "src_loss%": src_loss}
+                   "dest_sites": dest_sites, "dest_loss": dest_loss, "src_sites": src_sites, "src_loss": src_loss}
             # print('high packet loss to/from multiple sites', doc)
             alarmOnList.addAlarm(body = f'Site {doc["site"]} shows high packet loss to/from multiple sites',
                                  tags = [site], source = doc)
