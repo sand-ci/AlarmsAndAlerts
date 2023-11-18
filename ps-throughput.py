@@ -79,14 +79,14 @@ def query4Avg(dateFrom, dateTo):
                       {
                         "src_site" : {
                           "terms" : {
-                            "field" : "src_site"
+                            "field" : "src_netsite"
                           }
                         }
                       },
                       {
                         "dest_site" : {
                           "terms" : {
-                            "field" : "dest_site"
+                            "field" : "dest_netsite"
                           }
                         }
                       }
@@ -148,7 +148,8 @@ def getStats(df, threshold):
     sitesDf = pd.merge(sitesDf, stdDf, left_on=['src_site','dest_site'], right_on=['src_site','dest_site'], how='left')
 
     # get the % change with respect to the average for the period
-    sitesDf['%change'] = round(((sitesDf['value'] - sitesDf['mean'])/sitesDf['mean'])*100)
+    sitesDf['change'] = round(((sitesDf['value'] - sitesDf['mean'])/sitesDf['mean'])*100)
+    sitesDf = sitesDf[~sitesDf['change'].isnull()]
 
     # grap the last 3 days period
     last3days = pd.to_datetime(max(sitesDf.dt.unique())).strftime("%Y-%m-%d")
@@ -161,12 +162,11 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
     print(f'\n Number of events: {len(alarmsDf)} ({alarmType})')
-    print(alarmsDf[['src_site', 'dest_site', 'ipv', 'z', '%change']])
+    print(alarmsDf[['src_site', 'dest_site', 'ipv', 'z', 'change']])
     src_cnt = alarmsDf[['src_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={'src_site': 'site'})
     dest_cnt = alarmsDf[['dest_site','ipv', 'ipv6']].value_counts().to_frame().reset_index().rename(columns={'dest_site': 'site'})
     cntDf = pd.concat([src_cnt, dest_cnt]).groupby(['site', 'ipv', 'ipv6'], group_keys=False).sum().reset_index()
-    print('\n --- Site invlovement --- ')
-    print(cntDf)
+
 
     # create the alarm objects
     alarmOnPair = alarms('Networking', 'Sites', alarmType)
@@ -183,10 +183,10 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
         for idx, row in subset.iterrows():
             if row['src_site'] != site:
                 src_sites.append(row['src_site'])
-                src_change.append(row['%change'])
+                src_change.append(row['change'])
             if row['dest_site'] != site:
                 dest_sites.append(row['dest_site'])
-                dest_change.append(row['%change'])
+                dest_change.append(row['change'])
 
         all_vals = src_change + dest_change
         above50 = [c for c in all_vals if abs(c)>=50]
@@ -202,16 +202,18 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
             doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
             # send the alarm with the proper message
             alarmOnMulty.addAlarm(body=f'{alarmType} from/to multiple sites', tags=[site], source=doc)
+            # print(doc)
             rows2Delete.extend(subset.index.values)
 
     # delete the rows for which alarms were created
     alarmsDf = alarmsDf.drop(rows2Delete)
 
     # The rest will be send as 'regular' src-dest alarms
-    for doc in alarmsDf[(alarmsDf['%change']<=-50)|(alarmsDf['%change']>=50)][['src_site', 'dest_site', 'ipv', 'ipv6',
-                                                                               'last3days_avg', '%change', 'from', 'to']].to_dict('records'):
+    for doc in alarmsDf[(alarmsDf['change']<=-50)|(alarmsDf['change']>=50)][['src_site', 'dest_site', 'ipv', 'ipv6',
+                                                                               'last3days_avg', 'change', 'from', 'to']].to_dict('records'):
         toHash = ','.join([doc['src_site'], doc['dest_site'], doc['ipv'], dateFrom, dateTo])
         doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
+        # print(doc)
         alarmOnPair.addAlarm(body=alarmType, tags=[doc['src_site'], doc['dest_site']], source=doc)
 
 now = datetime.utcnow()
