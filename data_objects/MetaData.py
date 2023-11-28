@@ -2,6 +2,7 @@ from elasticsearch.helpers import scan
 from datetime import datetime, timedelta
 import pandas as pd
 import traceback
+import urllib3
 import re
 
 import utils.queries as qrs
@@ -12,101 +13,201 @@ class MetaData(object):
 
     def __init__(self, dateFrom=None,  dateTo=None):
 
-        metaDf = self.getMetafromES()
-        fmt = '%Y-%m-%d %H:%M'
+        fmt = "%Y-%m-%d %H:%M"
         now = hp.roundTime(datetime.utcnow())
         dateTo = datetime.strftime(now, fmt)
+        # Around 1 Sept, the netsites were introduced to ES
+        beforeChange = self.getEndpoints( ['2023-01-01 00:15', '2023-09-01 00:15'], False)
+        afterChange = self.getEndpoints(['2023-09-01 00:15', dateTo], True)
 
-        if len(metaDf) > 1:
-            print('Update meta data')
-            dateFrom = datetime.strftime(now - timedelta(days=1), fmt)
-            timeRange = hp.GetTimeRanges(dateFrom, dateTo)
-            latest = self.__getLatestData(timeRange[0], timeRange[1])
-            metaDf = self.__updateDataset(metaDf, latest)
-        else:
-            print('No data found. Query a year back.')
-            dateFrom = datetime.strftime(now - timedelta(days=365), fmt)
-            timeRange = hp.GetTimeRanges(dateFrom, dateTo, 10)
+        endpointsDf = pd.merge(afterChange[['ip', '_host', '_site' ,'ipv6', 'netsite']],
+                               beforeChange[['ip', '_host', '_site' ,'ipv6']], on=['ip', 'ipv6'], how="outer", suffixes=('_after', '_before'))
 
-            metaDf = pd.DataFrame()
+        endpointsDf['site'] = endpointsDf.apply(lambda row: self.combine_sites(row), axis=1)
+        endpointsDf['netsite'] = endpointsDf['netsite'].fillna(endpointsDf['site'])
+        endpointsDf['host'] = endpointsDf['_host_after'].fillna(endpointsDf['_host_before'])
+        endpointsDf = self.fixUnknownSites(endpointsDf)
+        endpointsDf = endpointsDf[['ip', 'site', 'ipv6', 'host', 'netsite']].drop_duplicates()
 
-            for i in range(len(timeRange)-1):
-                print(f'Period: {timeRange[i]}, {timeRange[i+1]}')
 
-                latest = self.__getLatestData(timeRange[i], timeRange[i+1])
-                if len(metaDf) > 0:
-                    print(f'Size latest data: {len(latest)}')
-                    metaDf = self.__updateDataset(metaDf, latest)
-                else:
-                    metaDf = latest
+        metaDf = self.getMeta(endpointsDf)
+        metaDf = self.fixUnknownWithNetsite(metaDf)
 
-                print(f'{i}   Size after update: {len(metaDf)}')
-                print()
+        metaDf.loc[:, 'ip'] = metaDf['ip'].str.upper()
+        metaDf.loc[:, 'site'] = metaDf['site'].str.upper()
+        metaDf.loc[:, 'netsite'] = metaDf['netsite'].str.upper()
+        metaDf.loc[:, 'site_meta'] = metaDf['site_meta'].str.upper()
+
+        # fill in empty lat and lon based on host, ip, site
+        metaDf = metaDf.sort_values(['lat', 'lon'])
+        metaDf = metaDf.fillna(metaDf[['host', 'lat', 'lon']].groupby('host').ffill())
+        metaDf = metaDf.fillna(metaDf[['ip', 'lat', 'lon']].groupby('ip').ffill())
+        metaDf = metaDf.fillna(metaDf[['site', 'lat', 'lon']].groupby('site').ffill())
+        metaDf = metaDf.fillna(metaDf[['site_meta', 'lat', 'lon']].groupby('site_meta').ffill())
+
+        # mdf_sorted = metaDf.sort_values(by=['ip', 'site', 'netsite'])
+        # # when an ip has a few records, prefer one where site != netsite
+        # metaDf = mdf_sorted.drop_duplicates(subset='ip', keep='last')
+
+        metaDf = metaDf.drop_duplicates()
+
+        print(f"Endpoints without a location: {len(metaDf[metaDf['lat'].isnull()])}")
 
         self.metaDf = metaDf
 
 
     @staticmethod
-    def getMetafromES():
-        meta = []
-        data = scan(hp.es, index='ps_alarms_meta')
-        for item in data:
-            meta.append(item['_source'])
+    def queryEndpoints(dt, endpoint, idx, netsiteExists):
+        data = []
+        query = {
+            "bool": {
+              "must": [
+                {
+                  "range": {
+                    "timestamp": {
+                      "format": "yyyy-MM-dd HH:mm",
+                      "gte": dt[0],
+                      "lte": dt[1]
+                    }
+                  }
+                }
+                ]
+            }
+          }
 
-        if meta:
-            return pd.DataFrame(meta)
+
+        aggregations = {
+            "groupby" : {
+              "composite" : {
+                "size" : 9999,
+                "sources" : [
+                  {
+                    "ipv6" : {
+                      "terms" : {
+                        "field" : "ipv6"
+                      }
+                    }
+                  },
+                  {
+                    endpoint : {
+                      "terms" : {
+                        "field" : endpoint
+                      }
+                    }
+                  },
+                  {
+                    f"{endpoint}_host" : {
+                      "terms" : {
+                        "field" : f"{endpoint}_host"
+                      }
+                    }
+                  },
+                  {
+                    f"{endpoint}_site" : {
+                      "terms" : {
+                        "field" : f"{endpoint}_site"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+        if netsiteExists:
+            # print(aggregations['groupby']['composite']['sources'])
+            aggregations['groupby']['composite']['sources'].append({
+                                                                    f"{endpoint}_netsite" : {
+                                                                      "terms" : {
+                                                                        "field" : f"{endpoint}_netsite"
+                                                                      }
+                                                                    }
+                                                                  })
+
+        # print(str(query).replace("\'", "\""))
+        # print(str(aggregations).replace("\'", "\""))
+        data = []
+        aggdata = hp.es.search(index=idx, query=query, aggregations=aggregations, size=0)
+
+        for item in aggdata['aggregations']['groupby']['buckets']:
+            ip = item['key'][endpoint]
+
+            row = { 'ip': ip, 'ipv6': item['key']['ipv6'],
+                          '_host': item['key'][f'{endpoint}_host'],
+                          '_site': item['key'][f'{endpoint}_site']
+                         }
+            if f'{endpoint}_netsite' in item['key']:
+                row['netsite'] = item['key'][f'{endpoint}_netsite']
+            data.append(row)
+
+        df = pd.DataFrame(data)
+
+        # df[':site'] = df.apply(lambda row: combine_sites(row, ''), axis=1)
+        df.loc[:, '_site'] = df['_site'].str.upper()
+
+        # unique_combinations = df[['ip', ':site']].groupby(['ip']).nunique().sort_values(':site').\
+        #                                                          rename(columns={':site':'count'}).reset_index()
+        # moreSites = unique_combinations[unique_combinations['count'] > 1]['ip'].tolist()
+
+        # if len(moreSites) > 1:
+        #     print("The following IP addressed have multiple site names:")
+        #     for ip in moreSites:
+        #         display(df[df['ip']==ip])
+
+        return df
+
+
+    def getEndpoints(self, dt, netsiteExists):
+        srcdf = self.queryEndpoints(dt, 'src', 'ps_packetloss', netsiteExists)
+        destdf = self.queryEndpoints(dt, 'dest', 'ps_packetloss', netsiteExists)
+        mergeddf = pd.merge(srcdf, destdf, how='outer')
+
+        srcdf = self.queryEndpoints(dt, 'src', 'ps_owd', netsiteExists)
+        destdf = self.queryEndpoints(dt, 'dest', 'ps_owd', netsiteExists)
+        mergeddf1 = pd.merge(srcdf, destdf, how='outer')
+        mergeddf = pd.merge(mergeddf, mergeddf1, how='outer')
+
+        srcdf = self.queryEndpoints(dt, 'src', 'ps_throughput', netsiteExists)
+        destdf = self.queryEndpoints(dt, 'dest', 'ps_throughput', netsiteExists)
+        mergeddf1 = pd.merge(srcdf, destdf, how='outer')
+        mergeddf = pd.merge(mergeddf, mergeddf1, how='outer')
+
+        srcdf = self.queryEndpoints(dt, 'src', 'ps_trace', netsiteExists)
+        destdf = self.queryEndpoints(dt, 'dest', 'ps_trace', netsiteExists)
+        mergeddf1 = pd.merge(srcdf, destdf, how='outer')
+        mergeddf = pd.merge(mergeddf, mergeddf1, how='outer')
+
+        return mergeddf
 
 
     @staticmethod
-    def getNodes(dt):
-        allNodesDf = qrs.allTestedNodes(dt)
-        allNodesDf = allNodesDf[(allNodesDf['ip'] != '')
-                                & ~(allNodesDf['ip'].isnull())]
-
-        # remove the duplicates
-        allNodesDf = allNodesDf.sort_values(['ip', 'host'], ascending=False)
-        allNodesDf = allNodesDf.drop_duplicates(subset='ip', keep='first')
-
-        return allNodesDf
+    def combine_sites(row):
+        if pd.isna(row['_site_after']) or row['_site_after'] == '' or row['_site_after'] == 'UNKNOWN':
+            if not pd.isna(row['_site_before']) and row['_site_before'] != '' and row['_site_before'] != 'UNKNOWN':
+                return row['_site_before']
+        return row['_site_after']
 
 
-    def __getLatestData(self, dateFrom, dateTo):
-        df = pd.DataFrame()
-        try:
-            dt = [dateFrom, dateTo]
-            allNodesDf = self.getNodes(dt)
-            rows = []
-            for item in allNodesDf.to_dict('records'):
-                lastRec = qrs.mostRecentMetaRecord(
-                    item['ip'], item['ipv6'], dt)
-                item['site_index'] = item['site']
-                if len(lastRec) > 0:
-                    # when there is no site name coming from the main indices or site has
-                    # multiple locations like GRIF, get the name from ps_meta
-                    if (lastRec['site_meta'] is not None) and (item['site'] is None or item['site'] in ['GRIF', 'MWT2', 'AGLT2']):
-                        lastRec['site'] = lastRec['site_meta']
-                    else:
-                        lastRec['site'] = item['site']
+    @staticmethod
+    def flatten_extend(lists):
+        flat_list = []
+        for row in lists:
+            flat_list.extend(row)
+        return set(flat_list)
 
-                    if item['ipv6'] is not None:
-                        lastRec['ipv6'] = item['ipv6']
 
-                    rows.append(lastRec)
-                else:
-                    rows.append(item)
-
-            df = pd.DataFrame(rows)
-
-            df['last_update'] = df['timestamp'].apply(
-                lambda ts: hp.convertTime(ts))
-            df['last_update'].fillna(hp.convertTime(dt[1]), inplace=True)
-        except Exception as e:
-            print(e)
-            print(item)
-            print(lastRec)
-            print()
-
-        return df
+    def fixUnknownSites(self, endpointsDf):
+        for idx, row in endpointsDf[endpointsDf['site']=='UNKNOWN'][['ip', 'host']].iterrows():
+            ip, host = row
+            # print(idx)
+            values = endpointsDf[((endpointsDf['ip']==ip) | (endpointsDf['host']==host)) &
+                                (endpointsDf['site']!='UNKNOWN')][['_site_before', '_site_after']].drop_duplicates().values.tolist()
+            possibility = [x for x in self.flatten_extend(values) if x==x and x!='UNKNOWN']
+            if len(possibility)==1:
+                endpointsDf.loc[endpointsDf['ip'] == ip, 'site'] = possibility[0]
+            # else:
+            #     print(possibility)
+        return endpointsDf
 
 
     @staticmethod
@@ -116,44 +217,152 @@ class MetaData(object):
         return False
 
 
-    def __updateField(self, ip, field, newRec, oldRec):
-        # check if the values are different and verify the new value is not None
-        if oldRec[field].values[0] != newRec[field].values[0] and newRec[field].values[0] is not None and newRec[field].values[0] == newRec[field].values[0]:
-            if not field == 'host':
-                print(
-                    f"updating {ip}  {field} {oldRec[field].values[0]} ===> {newRec[field].values[0]}")
-                return newRec[field].values[0]
-            else:
-                if self.__isHost(newRec[field].values[0]):
-                    print(
-                        f"updating {ip}  {field} {oldRec[field].values[0]} ===> {newRec[field].values[0]}")
-                    return newRec[field].values[0]
+    def mostRecentMetaRecord(self, ip, site, host, ipv6, netsite):
+        ipv = 'ipv6' if ipv6 == True else 'ipv4'
 
-        return oldRec[field].values[0]
+        q_ip = {
+            "bool" : {
+              "must" : [
+                {
+                  "term" : {
+                    f"external_address.{ipv}_address" : {
+                      "value" : ip,
+                      "case_insensitive": True
+                    }
+                  }
+                }
+              ]
+            }
+          }
 
 
-    def __updateDataset(self, df, latest):
-        columns = ['ip', 'host', 'site', 'administrator',
-                   'email', 'lat', 'lon', 'site_meta', 'site_index']
-        merged = latest[columns].merge(
-            df[columns], indicator=True, how='outer')
-        diff = merged[merged['_merge'] == 'left_only']['ip'].values
+        q_site = {
+            "bool": {
+              "must": {
+                "bool": {
+                  "should": [
+                    {
+                      "term": {
+                        "site.keyword": {
+                          "value": site,
+                          "case_insensitive": True
+                        }
+                      }
+                    },
+                    {
+                      "term": {
+                        "config.site_name.keyword": {
+                          "value": site,
+                          "case_insensitive": True
+                        }
+                      }
+                    },
+                    {
+                      "term": {
+                        "rcsite.keyword": {
+                          "value": site,
+                          "case_insensitive": True
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+        }
 
-        for ip in diff:
-            oldRec = df[(df['ip'] == ip)]
-            newRec = latest[(latest['ip'] == ip)]
+        q_host = {
+            "bool" : {
+              "must" : [
+                {
+                  "term" : {
+                    "host" : {
+                      "value" : host,
+                      "case_insensitive": True
+                    }
+                  }
+                }
+              ]
+            }
+          }
 
-            if len(oldRec) == 0:
-                print(f' +++ new row for ip {ip}')
-                df = pd.concat([df, newRec])
-            else:
-                for col in columns[1:]:
-                    df.loc[df['ip'] == ip, col] = self.__updateField(
-                        ip, col, newRec, oldRec)
 
-        # sort the df by location, so that the non-null/nan go at the bottom,
-        # then the missing could be forward-filled based on site name
-        df = df.sort_values(['lat', 'lon'])
-        df = df.fillna(df[['site', 'lat', 'lon']].groupby('site').ffill())
+        # print(str(q).replace("\'", "\""))
+        doc = {}
+        not_in = []
+        sort = {"timestamp" : {"order" : "desc"}}
+        source = ["geolocation",f"external_address.{ipv}_address", "config.site_name",
+                  "host","administrator.name","administrator.email","timestamp"]
 
+
+        data = hp.es.search(index='ps_meta', query=q_ip, size=1, _source=source, sort=sort)
+
+        if data['hits']['hits']:
+            records = data['hits']['hits'][0]['_source']
+        else:
+            if site and site==site:
+                data = hp.es.search(index='ps_meta', query=q_site, size=1, _source=source, sort=sort)
+            if not data['hits']['hits']:
+                if self.__isHost(host):
+                    data = hp.es.search(index='ps_meta', query=q_host, size=1, _source=source, sort=sort)
+
+        if len(data['hits']['hits'])>0:
+            records = data['hits']['hits'][0]['_source']
+            doc['ip'] = ip
+            doc['site'] = site
+            doc['netsite'] = netsite
+            doc['host'] = host
+            doc['ipv6'] = ipv6
+            if 'timestamp' in records:
+                doc['timestamp'] = records['timestamp']
+            if 'host' in records:
+                doc['host'] = records['host']
+            if 'config' in records:
+                if 'site_name' in records['config']:
+                    doc['site_meta'] = records['config']['site_name']
+            if 'administrator' in records:
+                if 'name' in records['administrator']:
+                    doc['administrator'] = records['administrator']['name']
+                if 'email' in records['administrator']:
+                    doc['email'] = records['administrator']['email']
+            if 'geolocation' in records:
+                doc['lat'], doc['lon'] = records['geolocation'].split(",")
+        else:
+            not_in = [ip, site, host, ipv6]
+
+        return doc, not_in
+
+
+    # site, ip, ipv6, host = endpointsDf[['site', 'ip', 'ipv6', '_host_before']].values.tolist()[-12]
+    # ip, ipv6, host, site = '2001:638:700:10a8:0:0:1:1e', True, 'perfsonar-ps-02.desy.de', 'DESY-HH'
+    # rec = mostRecentMetaRecord(ip, site, host, ipv6)
+    def getMeta(self, endpointsDf):
+        data = []
+        not_in_meta, uk = [],[]
+        for ip, site, ipv6, host, netsite in endpointsDf.values.tolist():
+            rec, not_in = self.mostRecentMetaRecord(ip, site, host, ipv6, netsite)
+            if site == 'UNKNOWN':
+                uk.append(ip)
+                # print(ip, site, ipv6, host)
+            if rec:
+                data.append(rec)
+            elif not_in:
+                not_in_meta.append(not_in)
+
+        # notindf = pd.DataFrame(not_in_meta)
+        # notindf
+
+        return pd.DataFrame(data)
+
+
+    def fixUnknownWithNetsite(self, df):
+        for idx, row in df[df['site']=='UNKNOWN'][['ip', 'host']].iterrows():
+            ip, host = row
+            values = df[((df['ip']==ip) | (df['host']==host))][['netsite', 'site_meta']].drop_duplicates().values.tolist()
+            possibility = [x for x in self.flatten_extend(values) if x==x and x!='UNKNOWN']
+            # print(ip, host, possibility, values)
+            if len(possibility)>=1:
+                df.loc[df['ip'] == ip, 'site'] = possibility[0]
+            # else:
+            #     print(possibility)
         return df

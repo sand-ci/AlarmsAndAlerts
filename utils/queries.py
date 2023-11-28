@@ -22,7 +22,8 @@ def allTestedNodes(period):
                   "range" : {
                     "timestamp" : {
                       "gt" : period[0],
-                      "lte": period[1]
+                      "lte": period[1],
+                      "format": "epoch_millis"
                     }
                   }
                 }
