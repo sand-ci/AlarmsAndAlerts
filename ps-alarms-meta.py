@@ -21,7 +21,7 @@ dataDict = df.to_dict('records')
 def sendToES(data):
     for d in data:
         try:
-            bulk(hp.es, [d])
+            bulk(hp.es, [d], index='ps_alarms_meta')
         except Exception as e:
             print(d,e)
     print(f'Inserted {len(data)} documents')
