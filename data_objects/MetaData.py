@@ -4,6 +4,7 @@ import pandas as pd
 import traceback
 import urllib3
 import re
+from geopy.geocoders import Nominatim
 
 import utils.queries as qrs
 import utils.helpers as hp
@@ -26,12 +27,18 @@ class MetaData(object):
         endpointsDf['site'] = endpointsDf.apply(lambda row: self.combine_sites(row), axis=1)
         endpointsDf['netsite'] = endpointsDf['netsite'].fillna(endpointsDf['site'])
         endpointsDf['host'] = endpointsDf['_host_after'].fillna(endpointsDf['_host_before'])
+
         endpointsDf = self.fixUnknownSites(endpointsDf)
         endpointsDf = endpointsDf[['ip', 'site', 'ipv6', 'host', 'netsite']].drop_duplicates()
 
 
         metaDf = self.getMeta(endpointsDf)
         metaDf = self.fixUnknownWithNetsite(metaDf)
+
+        # metaDf.loc[:, 'ip_original'] = metaDf['ip']
+        metaDf.loc[:, 'site_original'] = metaDf['site']
+        metaDf.loc[:, 'netsite_original'] = metaDf['netsite']
+        metaDf.loc[:, 'site_meta'] = metaDf['site_meta']
 
         metaDf.loc[:, 'ip'] = metaDf['ip'].str.upper()
         metaDf.loc[:, 'site'] = metaDf['site'].str.upper()
@@ -49,11 +56,26 @@ class MetaData(object):
         # # when an ip has a few records, prefer one where site != netsite
         # metaDf = mdf_sorted.drop_duplicates(subset='ip', keep='last')
 
+        metaDf = self.locateCountry(metaDf)
+
         metaDf = metaDf.drop_duplicates()
 
         print(f"Endpoints without a location: {len(metaDf[metaDf['lat'].isnull()])}")
 
         self.metaDf = metaDf
+
+
+    @staticmethod
+    def locateCountry(df):
+        geolocator = Nominatim(user_agent="my_app")
+
+        def get_country(lat, lon):
+          location = geolocator.reverse((lat, lon), exactly_one=True, language='en')
+          return location.raw['address']['country']
+
+        df['country'] = df.apply(lambda row: get_country(row['lat'], row['lon']), axis=1)
+
+        return df
 
 
     @staticmethod
@@ -133,17 +155,14 @@ class MetaData(object):
             ip = item['key'][endpoint]
 
             row = { 'ip': ip, 'ipv6': item['key']['ipv6'],
-                          '_host': item['key'][f'{endpoint}_host'],
-                          '_site': item['key'][f'{endpoint}_site']
-                         }
+                  '_host': item['key'][f'{endpoint}_host'],
+                  '_site': item['key'][f'{endpoint}_site'],
+                 }
             if f'{endpoint}_netsite' in item['key']:
                 row['netsite'] = item['key'][f'{endpoint}_netsite']
             data.append(row)
 
         df = pd.DataFrame(data)
-
-        # df[':site'] = df.apply(lambda row: combine_sites(row, ''), axis=1)
-        df.loc[:, '_site'] = df['_site'].str.upper()
 
         # unique_combinations = df[['ip', ':site']].groupby(['ip']).nunique().sort_values(':site').\
         #                                                          rename(columns={':site':'count'}).reset_index()

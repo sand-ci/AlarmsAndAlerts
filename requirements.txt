@@ -6,4 +6,5 @@ ipwhois
 cdifflib
 matplotlib
 scipy
+geopy
 # ipython 
