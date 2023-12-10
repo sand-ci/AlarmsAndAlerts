@@ -1,5 +1,5 @@
 # The code looks for the most recent data for each tested node
-# It scans all INDICES = ['ps_packetloss', 'ps_owd', 'ps_retransmits', 'ps_throughput', 'ps_trace'] and extracts the host, ip, site
+# It scans all INDICES = ['ps_packetloss', 'ps_owd', 'ps_throughput', 'ps_trace'] and extracts the host, ip, site
 # Then looks for additional data in ps_meta
 # Finally, it stores one record for each IP address along with the following fields: 
 # ['host', 'site', 'netsite', 'administrator', 'email', 'lat', 'lon', 'site_meta']
@@ -21,7 +21,7 @@ dataDict = df.to_dict('records')
 def sendToES(data):
     for d in data:
         try:
-            bulk(hp.es, [d], index='routers')
+            bulk(hp.es, [d])
         except Exception as e:
             print(d,e)
     print(f'Inserted {len(data)} documents')

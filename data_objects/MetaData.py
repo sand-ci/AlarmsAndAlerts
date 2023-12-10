@@ -185,6 +185,7 @@ class MetaData(object):
         if pd.isna(row['_site_after']) or row['_site_after'] == '' or row['_site_after'] == 'UNKNOWN':
             if not pd.isna(row['_site_before']) and row['_site_before'] != '' and row['_site_before'] != 'UNKNOWN':
                 return row['_site_before']
+
         return row['_site_after']
 
 
@@ -230,6 +231,11 @@ class MetaData(object):
                       "case_insensitive": True
                     }
                   }
+                },
+                {
+                  "exists": {
+                    "field": "geolocation"
+                  }
                 }
               ]
             }
@@ -238,36 +244,44 @@ class MetaData(object):
 
         q_site = {
             "bool": {
-              "must": {
-                "bool": {
-                  "should": [
+              "must":
+                [
                     {
-                      "term": {
-                        "site.keyword": {
-                          "value": site,
-                          "case_insensitive": True
+                    "bool": {
+                      "should": [
+                        {
+                          "term": {
+                            "site.keyword": {
+                              "value": site,
+                              "case_insensitive": True
+                            }
+                          }
+                        },
+                        {
+                          "term": {
+                            "config.site_name.keyword": {
+                              "value": site,
+                              "case_insensitive": True
+                            }
+                          }
+                        },
+                        {
+                          "term": {
+                            "rcsite.keyword": {
+                              "value": site,
+                              "case_insensitive": True
+                            }
+                          }
                         }
-                      }
-                    },
-                    {
-                      "term": {
-                        "config.site_name.keyword": {
-                          "value": site,
-                          "case_insensitive": True
-                        }
-                      }
-                    },
-                    {
-                      "term": {
-                        "rcsite.keyword": {
-                          "value": site,
-                          "case_insensitive": True
-                        }
-                      }
+                      ]
                     }
-                  ]
+                  },
+                 {
+                  "exists": {
+                    "field": "geolocation"
+                  }
                 }
-              }
+                ]
             }
         }
 
@@ -280,6 +294,11 @@ class MetaData(object):
                       "value" : host,
                       "case_insensitive": True
                     }
+                  }
+                },
+                {
+                  "exists": {
+                    "field": "geolocation"
                   }
                 }
               ]
@@ -295,6 +314,7 @@ class MetaData(object):
                   "host","administrator.name","administrator.email","timestamp"]
 
 
+
         data = hp.es.search(index='ps_meta', query=q_ip, size=1, _source=source, sort=sort)
 
         if data['hits']['hits']:
@@ -305,6 +325,8 @@ class MetaData(object):
             if not data['hits']['hits']:
                 if self.__isHost(host):
                     data = hp.es.search(index='ps_meta', query=q_host, size=1, _source=source, sort=sort)
+
+
 
         if len(data['hits']['hits'])>0:
             records = data['hits']['hits'][0]['_source']
@@ -341,7 +363,7 @@ class MetaData(object):
         not_in_meta, uk = [],[]
         for ip, site, ipv6, host, netsite in endpointsDf.values.tolist():
             rec, not_in = self.mostRecentMetaRecord(ip, site, host, ipv6, netsite)
-            if site == 'UNKNOWN':
+            if site == 'UNKNOWN': 
                 uk.append(ip)
                 # print(ip, site, ipv6, host)
             if rec:
@@ -349,10 +371,16 @@ class MetaData(object):
             elif not_in:
                 not_in_meta.append(not_in)
 
-        # notindf = pd.DataFrame(not_in_meta)
+        # notindf = pd.DataFrame(not_in_meta).tocsv
         # notindf
 
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        df.sort_values('timestamp', ascending=False, inplace=True)
+
+        # Drop duplicates, keeping the first occurrence (which, after sorting, is the most recent date)
+        df.drop_duplicates(subset='ip', keep='first', inplace=True)
+
+        return df
 
 
     def fixUnknownWithNetsite(self, df):
