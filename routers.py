@@ -80,7 +80,7 @@ def queryIndex(datefrom, dateto):
             dt = item['fields']['timestamp']
             if len(dt) == 1:
                 ret_data[count]['timestamp'] = dt[0]
-            # print(ret_data[count])
+
             count+=1
 
 
@@ -372,35 +372,48 @@ def buildRoutersDataset(dt):
     routerDf = routerDf.drop_duplicates(subset=['src', 'dest', 'ttls-hops_hash', 'throughput_Mb', 'throughput_ts', 'router'], keep='first')
     print('Number of router-related documents:', len(routerDf))
 
-    pathDf = pd.DataFrame(path_list)
-    # print('Number of path-related documents:', len(pathDf))
+    routerDf['index'] = 'routers'
+    router_list = routerDf.to_dict('records')
 
-    return routerDf.to_dict('records')
+    return router_list
 
 
 
 def sendToES(router_list):
-    bulk(hp.es, router_list, index='routers')
-    print(f'Inserted {len(router_list)} documents')
+    batch = []
+
+    try:
+        batch_size = 1000
+        batches = [router_list[i:i+batch_size] for i in range(0, len(router_list), batch_size)]
+        for batch in batches:
+            bulk(hp.es, batch, index='routers')
+
+        print("Sent successfully!")
+    except BulkIndexError as e:
+        print(f'Failed {len(batch)} \n')
+        print(batch[0])
+        for error_item in e.errors:
+            print(error_item)
+
 
 
 past12h = get_past_12_hours()
+# past12h = ['2023-06-30T11:05:00.000Z', '2023-07-01T00:01:00.000Z']
+df = buildRoutersDataset(past12h)
 router_list = buildRoutersDataset(past12h)
 sendToES(router_list)
-# router_dataset = pd.DataFrame(router_list)
-# router_dataset
 
 
 # # In case we neet to resend the data for many days
-# start, end = ['2023-05-31T00:01:00.000Z', '2023-11-01T00:01:00.000Z']
+# %%time
+# start, end = ['2023-07-01T00:01:00.000Z', '2023-12-16T11:05:00.000Z']
 # interval_in_days = 1  # 1-day interval
 # time_ranges = split_time_period(start, end, interval_in_days)
 # result = []
 # stats_list = []
+
 # with ProcessPoolExecutor(max_workers=30) as pool:
 #     # print('Starting parallel processing....')
 #     result = pool.map(buildRoutersDataset, time_ranges)
-
-# router_list, path_list = [], []
-# for r in result:
-#     router_list.extend(r[0])
+#     for router_list in result:
+#         sendToES(router_list)
