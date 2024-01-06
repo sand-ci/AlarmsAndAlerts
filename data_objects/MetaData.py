@@ -24,6 +24,9 @@ class MetaData(object):
         endpointsDf = pd.merge(afterChange[['ip', '_host', '_site' ,'ipv6', 'netsite']],
                                beforeChange[['ip', '_host', '_site' ,'ipv6']], on=['ip', 'ipv6'], how="outer", suffixes=('_after', '_before'))
 
+        endpointsDf.loc[:, 'ip'] = endpointsDf['ip'].str.upper()
+        endpointsDf = endpointsDf[(~endpointsDf['ip'].isnull()) & ~endpointsDf['ip'].isin(['%{[DESTINATION][IPV4]}', '%{[DESTINATION][IPV6]}'])]
+
         endpointsDf['site'] = endpointsDf.apply(lambda row: self.combine_sites(row), axis=1)
         endpointsDf['netsite'] = endpointsDf['netsite'].fillna(endpointsDf['site'])
         endpointsDf['host'] = endpointsDf['_host_after'].fillna(endpointsDf['_host_before'])
@@ -239,6 +242,7 @@ class MetaData(object):
 
     def mostRecentMetaRecord(self, ip, site, host, ipv6, netsite):
         ipv = 'ipv6' if ipv6 == True else 'ipv4'
+        site = netsite if site.upper() == 'UNKNOWN' else site
 
         q_ip = {
             "bool" : {
