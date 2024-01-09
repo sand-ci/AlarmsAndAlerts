@@ -340,8 +340,9 @@ def get_past_12_hours():
     
 
 
+
 def buildRoutersDataset(dt):
-    print(f'======== {dt} ========')
+    # print(f'======== {dt} ========')
     trptdf = getThroughputData(dt)
     tracedf = getTracerouteData(trptdf)
 
@@ -352,8 +353,11 @@ def buildRoutersDataset(dt):
 
     aggdf = tracedf[['throughput_ts', 'hops_str', 'ttls_str', 'ttls-hops_hash', 'src', 'dest', 'throughput_Mb', 'path_complete', 'destination_reached', 'route-sha1', 'ipv6']].groupby(['src', 'dest', 'ttls-hops_hash', 'hops_str', 'ttls_str', 'throughput_Mb', 'throughput_ts', 'path_complete', 'destination_reached', 'route-sha1', 'ipv6']).agg({'throughput_Mb':['count']})
     aggdf.columns = [col[1] for col in aggdf.columns.values]
+    aggdf['count'] = aggdf['count'].replace({2: True, 1: False})
+    # The flag "stable" indicates when both paths (around the throughput test) were the same or not
+    aggdf = aggdf.reset_index().rename(columns={'count':'stable'})
 
-    rows = aggdf[aggdf['count'] == 2].reset_index().drop(columns=['count']).to_dict('records')
+    rows = aggdf.to_dict('records')
     value_list = split_list(rows, 200)
     zipped_data = zip(itertools.repeat(tracedf), value_list)
 
@@ -372,7 +376,6 @@ def buildRoutersDataset(dt):
     routerDf = routerDf.drop_duplicates(subset=['src', 'dest', 'ttls-hops_hash', 'throughput_Mb', 'throughput_ts', 'router'], keep='first')
     print('Number of router-related documents:', len(routerDf))
 
-    routerDf['index'] = 'routers'
     router_list = routerDf.to_dict('records')
 
     return router_list
