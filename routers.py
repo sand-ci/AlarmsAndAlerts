@@ -351,17 +351,18 @@ def buildRoutersDataset(dt):
     # num_dest_not_in_trace = len(set(trptdf.dest.unique().tolist()) - set(tracedf.dest.unique().tolist()))
 
 
-    aggdf = tracedf[['throughput_ts', 'hops_str', 'ttls_str', 'ttls-hops_hash', 'src', 'dest', 'throughput_Mb', 'path_complete', 'destination_reached', 'route-sha1', 'ipv6']].groupby(['src', 'dest', 'ttls-hops_hash', 'hops_str', 'ttls_str', 'throughput_Mb', 'throughput_ts', 'path_complete', 'destination_reached', 'route-sha1', 'ipv6']).agg({'throughput_Mb':['count']})
+    aggdf = tracedf.groupby(['throughput_ts', 'hops_str', 'ttls_str', 'ttls-hops_hash',
+                 'src', 'dest', 'throughput_Mb', 'path_complete',
+                 'destination_reached', 'route-sha1', 'ipv6', 'src_host',
+                 'dest_host']).agg({'throughput_Mb':['count']})
     aggdf.columns = [col[1] for col in aggdf.columns.values]
     aggdf['count'] = aggdf['count'].replace({2: True, 1: False})
-    # The flag "stable" indicates when both paths (around the throughput test) were the same or not
     aggdf = aggdf.reset_index().rename(columns={'count':'stable'})
 
     rows = aggdf.to_dict('records')
     value_list = split_list(rows, 200)
     zipped_data = zip(itertools.repeat(tracedf), value_list)
 
-    
     result = []
     with ProcessPoolExecutor(max_workers=5) as pool:
         # print('Starting parallel processing....')
@@ -372,10 +373,23 @@ def buildRoutersDataset(dt):
         router_list.extend(r[0])
         path_list.extend(r[1])
 
+
     routerDf = pd.DataFrame(router_list)
     routerDf = routerDf.drop_duplicates(subset=['src', 'dest', 'ttls-hops_hash', 'throughput_Mb', 'throughput_ts', 'router'], keep='first')
+
+    routerDf.loc[:, 'src'] = routerDf['src'].str.upper()
+    routerDf.loc[:, 'dest'] = routerDf['dest'].str.upper()
+    routerDf.loc[:, 'router'] = routerDf['router'].str.upper()
+    mdf = getMeta()
+    routerDf = pd.merge(routerDf, mdf[['ip', 'site']], left_on='src', right_on='ip', how='left')
+    routerDf = pd.merge(routerDf, mdf[['ip', 'site']], left_on='dest', right_on='ip', how='left', suffixes=('_src', '_dest'))
+    routerDf = routerDf.drop(columns=['ip_src', 'ip_dest']).rename(columns={'site_src': 'src_site', 'site_dest': 'dest_site'})
+    routerDf['src_site'].fillna('', inplace=True)
+    routerDf['dest_site'].fillna('', inplace=True)
+
     print('Number of router-related documents:', len(routerDf))
 
+    # routerDf['index'] = 'routers'
     router_list = routerDf.to_dict('records')
 
     return router_list
@@ -386,18 +400,30 @@ def sendToES(router_list):
     batch = []
 
     try:
-        batch_size = 1000
+        batch_size = 500
         batches = [router_list[i:i+batch_size] for i in range(0, len(router_list), batch_size)]
         for batch in batches:
             bulk(hp.es, batch, index='routers')
 
         print("Sent successfully!")
-    except BulkIndexError as e:
+    except Exception as e:
+        print(e)
         print(f'Failed {len(batch)} \n')
         print(batch[0])
         for error_item in e.errors:
             print(error_item)
 
+
+def getMeta():
+    meta = []
+    data = scan(hp.es, index='ps_alarms_meta')
+    for item in data:
+        meta.append(item['_source'])
+
+    if meta:
+        mdf = pd.DataFrame(meta)
+
+    return mdf
 
 
 past12h = get_past_12_hours()
