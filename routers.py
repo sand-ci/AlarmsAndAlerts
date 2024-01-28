@@ -84,6 +84,9 @@ def queryIndex(datefrom, dateto):
 
             count+=1
 
+        # Check if ret_data is empty
+        if not ret_data:
+            raise ValueError("No data for the given period.")
 
         return ret_data
     except Exception as e:
