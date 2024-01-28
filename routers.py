@@ -10,6 +10,7 @@ urllib3.disable_warnings()
 from datetime import datetime, timezone, timedelta
 import hashlib
 import requests
+import ipaddress
 import itertools
 from functools import partial
 
@@ -38,7 +39,6 @@ def removeInvalid(tracedf):
         else:
             tracedf.iat[idx, tracedf.columns.get_loc('for_removal')] = 1
             j+=1
-
 
     nullsite = len(tracedf[(tracedf['src_site'].isnull()) | (tracedf['dest_site'].isnull())])
 
@@ -70,6 +70,7 @@ def queryIndex(datefrom, dateto):
         }
       }
     try:
+        # print(str(query).replace("\'", "\""))
         data = scan(client=hp.es,index='ps_throughput', query=query)
 
         ret_data = {}
@@ -621,8 +622,8 @@ def sendToES(router_list, max_retries=3, retry_delay=5):
 
 
 past12h = get_past_12_hours()
-past12h = ['2024-01-19T12:05:00.000Z', '2024-01-21T05:34:14.122910Z']
-# df = buildRoutersDataset(past12h)
+# past12h = ['2024-01-19T12:05:00.000Z', '2024-01-21T05:34:14.122910Z']
+df = buildRoutersDataset(past12h)
 router_list = buildRoutersDataset(past12h)
 sendToES(router_list)
 
