@@ -4,11 +4,15 @@ import socket
 import json
 import logging
 import argparse
-from elasticsearch import Elasticsearch, NotFoundError  # Import NotFoundError
+from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import scan
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+# Initialize status counts
+warning_status_count = 0
+critical_status_count = 0
 
 def get_members_for_type(entry):
     members = set()
@@ -42,8 +46,8 @@ def get_members(mesh_config, event_type):
                 found = True
                 yield entry['description'], get_members_for_type(entry)
         except KeyError:
-            # Handle the case where 'parameters' or 'type' key is not present in the entry
             pass
+
     if not found:
         print("No mesh members found for event type: %s" % event_type)
 
@@ -167,7 +171,14 @@ def test_esmond_meta(args, hostname):
         elif 'histogram-owdelay' in events and comp_rate >= 80:
             return 'OK'
         else:
-            return 'WARNING' if comp_rate <= 20 else 'CRITICAL'
+            status = 'WARNING' if comp_rate <= 20 else 'CRITICAL'
+            if status == 'WARNING':
+                global warning_status_count
+                warning_status_count += 1
+            elif status == 'CRITICAL':
+                global critical_status_count
+                critical_status_count += 1
+            return status
 
     return 'OK'
 
@@ -254,6 +265,8 @@ if __name__ == '__main__':
                 # Clear the scroll context by iterating over the generator
                 for _ in hosts:
                     pass
+
+                print("Final Host Status Counts (WARNING):", warning_status_count)
                 print("Complete")
 
     else:
