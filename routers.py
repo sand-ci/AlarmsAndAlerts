@@ -12,6 +12,7 @@ import hashlib
 import requests
 import ipaddress
 import itertools
+import time
 from functools import partial
 
 
@@ -19,7 +20,6 @@ from functools import partial
 def split_list(lst, chunk_size):
     for i in range(0, len(lst), chunk_size):
         yield lst[i:i+chunk_size]
-
 
 
 def removeInvalid(tracedf):
@@ -116,7 +116,6 @@ def getThroughputData(dt):
         return print(dt, e)
 
 
-
 def calculateDatetimeRange(input_datetime_str, delta_str):
     try:
         input_datetime = datetime.strptime(input_datetime_str, '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -174,8 +173,6 @@ def queryBySrcDest(src, dest, dtFrom, dtTo):
                   "boost": 1
                 }
               }
-
-
 
 
 def queryPSTrace(values):
@@ -353,15 +350,12 @@ def split_time_period(start_str, end_str, bin_hours=12):
     return bins
 
 
-
-
 def get_past_12_hours():
     current_datetime = datetime.now() - timedelta(hours=1)
     past_12_hours = current_datetime - timedelta(hours=12)
     past_12_hours_str = past_12_hours.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     now = current_datetime.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     return [past_12_hours_str, now]
-
 
 
 def getMeta():
@@ -378,6 +372,7 @@ def getMeta():
 
 class IPDefinedError(Exception):
     pass
+
 
 def get_as_number(ip):
     try:
@@ -520,6 +515,7 @@ def replace_zero_asn(router_to_asn, row):
     else:
         return row['asn']
 
+
 def try_recover_ASNs(routerDf):
     asn_mode = (
         routerDf[routerDf['asn'] != 0]  # Filter out rows where 'asn' is 0
@@ -589,10 +585,6 @@ def buildRoutersDataset(dt):
 
     return router_list
 
-
-
-from elasticsearch.helpers import bulk
-import time
 
 def sendToES(router_list, max_retries=3, retry_delay=5):
     batch = []
