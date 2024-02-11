@@ -562,7 +562,7 @@ def buildRoutersDataset(dt):
     routerDf.loc[:, 'dest'] = routerDf['dest'].str.upper()
     routerDf.loc[:, 'router'] = routerDf['router'].str.upper()
     routerDf.loc[:,'ttl'] = routerDf['ttl'].astype(int)
-    routerDf.loc[:,'rtt'] = routerDf['rtt'].astype(int)
+    routerDf.loc[:,'rtt'] = routerDf['rtt'].astype(float)
     routerDf.loc[:,'asn'] = routerDf['asn'].astype(int)
 
     mdf = getMeta()
