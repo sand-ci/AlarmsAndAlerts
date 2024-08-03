@@ -76,7 +76,11 @@ class MetaData(object):
           location = geolocator.reverse((lat, lon), exactly_one=True, language='en')
           return location.raw['address']['country']
 
-        df['country'] = df.apply(lambda row: get_country(row['lat'], row['lon']), axis=1)
+        unique_lat_lon = df[['lat', 'lon']].drop_duplicates()
+        unique_lat_lon['country'] = unique_lat_lon.apply(lambda row: get_country(row['lat'], row['lon']), axis=1)
+        lat_lon_to_country = dict(zip(unique_lat_lon.set_index(['lat', 'lon']).index, unique_lat_lon['country']))
+
+        df['country'] = df.apply(lambda row: lat_lon_to_country.get((row['lat'], row['lon'])), axis=1)
 
         return df
 
