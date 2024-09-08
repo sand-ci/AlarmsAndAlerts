@@ -76,9 +76,9 @@ def runInParallel(dateFrom, dateTo):
     # dateFrom, dateTo = hp.defaultTimeRange(12)
     # dateFrom, dateTo = ['2022-05-17 20:15', '2022-05-18 08:15']
     print(f' Run for period: {dateFrom}  -   {dateTo}')
-    dtList = hp.GetTimeRanges(dateFrom, dateTo, 24)
+    dtList = hp.GetTimeRanges(dateFrom, dateTo, 12)
     result = []
-    with ProcessPoolExecutor(max_workers=len(dtList)) as pool:
+    with ProcessPoolExecutor(max_workers=4) as pool:
         result.extend(pool.map(getTraceData, [[dtList[i], dtList[i+1]] for i in range(len(dtList)-1)]))
 
     data = []
@@ -509,7 +509,7 @@ def getProbabilities(posDf, max_ttl):
     columns = ['pair']
     columns.extend(sorted([c for c in posDf.columns if c != 'pair']))
     posDf = posDf[columns].sort_values('pair')
-    
+
     plist = []
 
     def calcP(g):
@@ -627,7 +627,7 @@ def getASNInfo(ids):
 def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
     def getPaths(fld, ddf):
         temp = {}
-        ddf['hash_freq'] = ddf['hash_freq'].round(2)
+        ddf.loc[:, 'hash_freq'] = ddf['hash_freq'].round(2)
         if len(ddf)>0:
             temp[fld] = ddf[['asns_updated', 'cnt_total_measures', 'path_always_reaches_dest', 'hash_freq']].\
                 to_dict('records')
@@ -678,7 +678,7 @@ def sendAlarms(data):
         )
 
 
-# query the past 24 hours and split the period into 8 time ranges
+# query the past 72 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(72)
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
