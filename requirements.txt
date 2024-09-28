@@ -7,4 +7,5 @@ cdifflib
 matplotlib
 scipy
 geopy
+psconfig-client
 # ipython 
