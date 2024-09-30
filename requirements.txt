@@ -8,5 +8,4 @@ matplotlib
 scipy
 geopy
 psconfig-client
-socket
 # ipython 
