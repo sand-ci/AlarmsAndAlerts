@@ -634,6 +634,8 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         return temp
 
     probDf['P'] = probDf['P'].round(2)
+    # Replace invalid values with NaN, then convert to integers
+    probDf['asn'] = pd.to_numeric(probDf['asn'], errors='coerce')
     probDf['asn'] = probDf['asn'].astype('int')
 
     alarmsData = []
@@ -680,6 +682,7 @@ def sendAlarms(data):
 
 # query the past 72 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(72)
+dateFrom, dateTo ='2024-09-30T17:13:02.000Z','2024-10-03T17:13:02.000Z'
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
 
