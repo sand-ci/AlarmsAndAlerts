@@ -634,6 +634,8 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         return temp
 
     probDf['P'] = probDf['P'].round(2)
+    # Replace invalid values with NaN, then convert to integers
+    probDf['asn'] = pd.to_numeric(probDf['asn'], errors='coerce')
     probDf['asn'] = probDf['asn'].astype('int')
 
     alarmsData = []
