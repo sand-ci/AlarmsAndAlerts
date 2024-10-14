@@ -338,7 +338,7 @@ def getStats4Paths(relDf, df):
             print(e)
 
     relDf[['src', 'dest', 'asns_updated', 'hops', 'destination_reached']].\
-        groupby(['src', 'dest']).apply(lambda x: hashASNs(x))
+        groupby(['src', 'dest'], group_keys=True).apply(lambda x: hashASNs(x))
 
     uniquePaths = pd.DataFrame(uniquePathsList).rename(columns={
         0: 'src', 1: 'dest', 2: 'asns_updated',
@@ -352,12 +352,12 @@ def getStats4Paths(relDf, df):
     })
 
     # for each hashed path check if all tests reported destination_reached=True
-    pathReachedDestDf = cleanPathsAllTests.groupby('hash').\
+    pathReachedDestDf = cleanPathsAllTests.groupby('hash', group_keys=True).\
         apply(lambda x: True if all(x.dest_reached) else False).\
         to_frame().rename(columns={0: 'path_always_reaches_dest'})
 
     # get the probability for each path in a column (hash_freq)
-    pathFreq = cleanPathsAllTests.groupby(['src', 'dest'])['hash'].\
+    pathFreq = cleanPathsAllTests.groupby(['src', 'dest'], group_keys=True)['hash'].\
         apply(lambda x: x.value_counts(normalize=True)).to_frame()
     pathFreq = pathFreq.reset_index().rename(columns={'hash': 'hash_freq', 'level_2': 'hash'})
 
@@ -526,7 +526,8 @@ def getProbabilities(posDf, max_ttl):
             print(pair)
             print(e)
 
-    posDf.groupby('pair').apply(lambda g: calcP(g))
+    posDf.groupby('pair', group_keys=True).apply(lambda g: calcP(g))
+
 
     return pd.DataFrame(plist, columns=['pair', 'asn', 'pos', 'P'])
 
@@ -634,8 +635,6 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         return temp
 
     probDf['P'] = probDf['P'].round(2)
-    # Replace invalid values with NaN, then convert to integers
-    probDf['asn'] = pd.to_numeric(probDf['asn'], errors='coerce')
     probDf['asn'] = probDf['asn'].astype('int')
 
     alarmsData = []
@@ -682,15 +681,17 @@ def sendAlarms(data):
 
 # query the past 72 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(72)
-dateFrom, dateTo ='2024-09-30T17:13:02.000Z','2024-10-03T17:13:02.000Z'
+dateFrom, dateTo ='2024-10-09T09:56:18.000Z','2024-10-12T09:56:18.000Z'
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
+df = df[~(df['src']=='') & ~(df['dest']=='')]
 
 print('Total number of documnets:', len(df))
 df.loc[:, 'src_site'] = df['src_netsite'].str.upper()
 df.loc[:, 'dest_site'] = df['dest_netsite'].str.upper()
 df.loc[:, 'pair'] = df['src']+'-'+df['dest']
 df = df[~(df['src_site'].isnull()) & ~(df['dest_site'].isnull()) & ~(df['asns'].isnull())]
+print(f'number of documents: {len(df)}')
 
 asn2ip, ip2asn, max_ttl = mapHopsAndASNs(df)
 
@@ -702,7 +703,6 @@ mapASNsManualy(291, 293, altsOfAlts)
 mapASNsManualy(293, 291, altsOfAlts)
 
 relDf = hp.parallelPandas(fix0ASNs)(df)
-
 pathDf = getStats4Paths(relDf, df)
 
 # remove rows where site is None and ignore those with 100% stable paths
@@ -753,6 +753,7 @@ posDf = hp.parallelPandas(positionASNsUsingTTLs)(subset)
 
 # Get the probability for each position, based on src-dest pair
 probDf = getProbabilities(posDf, max_ttl)
+probDf[~(probDf['asn'].isna()) & ~(probDf['asn']=='')]
 
 
 # Find the nodes that work sporadically and add those the the baseline list
