@@ -755,7 +755,14 @@ posDf = hp.parallelPandas(positionASNsUsingTTLs)(subset)
 
 # Get the probability for each position, based on src-dest pair
 probDf = getProbabilities(posDf, max_ttl)
-probDf[~(probDf['asn'].isna()) & ~(probDf['asn']=='')]
+
+# Replace empty strings with NaN first
+probDf['asn'].replace('', np.nan, inplace=True)
+# Remove rows where 'asn' is NaN (including inf if needed)
+probDf = probDf[~probDf['asn'].isna()]
+
+print(f"Python version: {sys.version}")
+print(f"Pandas version: {pd.__version__}")
 
 
 # Find the nodes that work sporadically and add those the the baseline list
