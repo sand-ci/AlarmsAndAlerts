@@ -1,6 +1,7 @@
 from elasticsearch.helpers import scan, parallel_bulk
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
+import numpy as np
 import json
 import requests
 import collections
