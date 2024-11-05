@@ -12,7 +12,10 @@ import utils.helpers as hp
 import utils.queries as qrs
 from utils.helpers import timer
 from alarms import alarms
+import sys
 
+print(f"Python version: {sys.version}")
+print(f"Pandas version: {pd.__version__}")
 
 # Builds the trceroute query
 def queryPSTrace(dt):
@@ -761,10 +764,6 @@ probDf = getProbabilities(posDf, max_ttl)
 probDf['asn'].replace('', np.nan, inplace=True)
 # Remove rows where 'asn' is NaN (including inf if needed)
 probDf = probDf[~probDf['asn'].isna()]
-
-print(f"Python version: {sys.version}")
-print(f"Pandas version: {pd.__version__}")
-
 
 # Find the nodes that work sporadically and add those the the baseline list
 baseLine = addOnAndOffNodes(diffs, probDf, baseLine)
