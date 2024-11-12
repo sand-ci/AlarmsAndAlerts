@@ -139,7 +139,7 @@ def mapHopsAndASNs(df):
 # However, we can repair part of the information by looking up the IP address at that position
 
 @timer
-def fix0ASNs(df):
+def fix0ASNs(df, ip2asn):
 
     zfix = []
     relDf = df[['src', 'dest', 'asns', 'hops', 'pair',
@@ -639,9 +639,13 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         return temp
 
     probDf['P'] = probDf['P'].round(2)
-    # Replace invalid values with NaN, then convert to integers
-    probDf['asn'] = pd.to_numeric(probDf['asn'], errors='coerce')
-    probDf['asn'] = probDf['asn'].astype('int')
+
+    try:
+        probDf['asn'] = probDf['asn'].astype(int)
+    except ValueError as e:
+        print(probDf['asn'].unique())
+        print("Conversion error:", e)
+        print(probDf[probDf['asn'].apply(lambda x: not x.isdigit() if isinstance(x, str) else False)])
 
     alarmsData = []
     for pair, diff in diffs.items():
@@ -708,7 +712,7 @@ altsOfAlts = getAltsOfAlts(altASNsDict)
 mapASNsManualy(291, 293, altsOfAlts)
 mapASNsManualy(293, 291, altsOfAlts)
 
-relDf = hp.parallelPandas(fix0ASNs)(df)
+relDf = hp.parallelPandas(fix0ASNs, chunksize=1000)(df, ip2asn=ip2asn)
 pathDf = getStats4Paths(relDf, df)
 
 # remove rows where site is None and ignore those with 100% stable paths
@@ -760,10 +764,14 @@ posDf = hp.parallelPandas(positionASNsUsingTTLs)(subset)
 # Get the probability for each position, based on src-dest pair
 probDf = getProbabilities(posDf, max_ttl)
 
+# Due to different versions of Python & Pandas, we need to make sure the ASNs are intigers
 # Replace empty strings with NaN first
 probDf['asn'].replace('', np.nan, inplace=True)
-# Remove rows where 'asn' is NaN (including inf if needed)
-probDf = probDf[~probDf['asn'].isna()]
+# Remove rows where asn is NaN
+probDf.dropna(subset=['asn'], inplace=True)
+probDf['asn'] = pd.to_numeric(probDf['asn'], errors='coerce')
+probDf.dropna(subset=['asn'], inplace=True)
+
 
 # Find the nodes that work sporadically and add those the the baseline list
 baseLine = addOnAndOffNodes(diffs, probDf, baseLine)

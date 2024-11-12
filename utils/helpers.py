@@ -39,24 +39,25 @@ def timer(func):
     return wrapper_timer
 
 
-''' Takes a function, splits a dataframe into 
+''' Takes a function, splits a dataframe into
 batches and excutes the function passing a batch as a parameter.'''
-def parallelPandas(function):
+from concurrent.futures import ProcessPoolExecutor
+from functools import wraps
+
+def parallelPandas(function, chunksize=10000):
     @wraps(function)
-    def wrapper(dataframe):
-        cores = 16
-        splits = np.array_split(dataframe, cores*2)
-        result = []
+    def wrapper(dataframe, *args, **kwargs):
+        cores = 14
+        splits = np.array_split(dataframe, cores)
 
-        with ProcessPoolExecutor(max_workers=cores) as pool:
-            result.extend(pool.map(function, splits))
+        with ThreadPoolExecutor(max_workers=cores) as pool:
+            result = pool.map(lambda df: function(df, *args, **kwargs), splits, chunksize=chunksize)
 
-        frame = pd.DataFrame()
-        for data in result:
-            frame = pd.concat([frame, data])
-
-        return frame
+        return pd.concat(result, ignore_index=True)
     return wrapper
+
+
+
 
 
 '''Returns a period of the past 3 hours'''
