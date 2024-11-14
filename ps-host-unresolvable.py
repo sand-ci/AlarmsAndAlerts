@@ -22,15 +22,17 @@ from alarms import alarms
 from datetime import datetime
 def host_resolvable(host):
     """
-    Checks whether the host is resolvable via DNS.
+    Checks whether the host is resolvable via DNS for either IPv4 or IPv6 addresses.
     """
     try:
-        socket.gethostbyname(host)
-        # print(f"{host} is resolvable via DNS")
-        return True
+        addr_info = socket.getaddrinfo(host, None)
+        if addr_info:
+            # print(f"{host} is resolvable via DNS")
+            return True
     except socket.gaierror:
         # print(f"{host} is NOT resolvable via DNS")
-        return False
+        pass
+    return False
 
 def extract_configs_from_url(mesh_url):
     """
