@@ -15,7 +15,7 @@
 #                    TODO: Marian's API returns sites whose names do not exactly match those recorded in Elasticsearch. This directly affects the tags that users use.
 # Author: Yana Holoborodko
 # Copyright 2024
-import helpers as hp
+import utils.helpers as hp
 import warnings
 import time
 import datetime as dt
@@ -24,8 +24,12 @@ import pandas as pd
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 import psconfig.api
-import urllib3
+from pymemcache.client import base
 from alarms import alarms
+
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def query4Hosts(dateFrom, dateTo, testType):
     query = {
@@ -123,20 +127,24 @@ def check_data_difference_in_es(data_from, data_to, test_type, expected_hosts):
     return difference, round(p, 2)
 
 if __name__ == '__main__':
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
     today_date = dt.date.today()
     delta = today_date - dt.timedelta(days=2)
     time_from = dt.time(0, 0)
     time_to = dt.time(23, 59, 59)
     m_from = dt.datetime.combine(delta, time_from).strftime('%Y-%m-%dT%H:%M:%S.000Z')
     m_to = dt.datetime.combine(delta, time_to).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
+    client = base.Client(('memcached.collectors', 11211))
+
     mesh_url = "https://psconfig.aglt2.org/pub/config"
     mesh_config = psconfig.api.PSConfig(mesh_url)
+
     all_hosts = mesh_config.get_all_hosts()
     ips = list(all_hosts)
     test_types = ['owd', 'trace', 'throughput']
     expected_tests_types = create_hosts_tests_types_grid(ips, mesh_config)
+
     sites_mapping = {}
     stats = {'percent_owd': None,
             'percent_trace': None,
@@ -147,28 +155,62 @@ if __name__ == '__main__':
             'num_expected_owd': None,
             'num_expected_trace': None,
             'num_expected_throughput': None}
+
+    # docs = []
+
     for test in test_types:
         expected_hosts_test = set(expected_tests_types[expected_tests_types[test] == True]['host'].to_list())
         diff, percent = check_data_difference_in_es(m_from, m_to, test, expected_hosts_test)
+
         for host in diff:
-            site = mesh_config.get_site(host)
+            netsite_bytes = client.get(f'netsite_{host}')
+            # print('\n', host)
+            if netsite_bytes:
+                site = netsite_bytes.decode('utf-8')
+                # print('netsite', site)
+            else:
+                rcsite_bytes = client.get(f'rcsite_{host}')
+                if netsite_bytes:
+                    site = rcsite_bytes.decode('utf-8')
+                    # print('rcsite', site)
+                # Ignore hosts that are not currently in Memcached. Those are probably tested by someone else.
+                # else:
+                #     site = mesh_config.get_site(host)
+                #     print(f"No data found for host {host} in Memcached. Taking site from mesh_config", site)
+
             if site not in sites_mapping:
                 type_subset = dict()
                 sites_mapping[site] = type_subset
+
             if test not in sites_mapping[site].keys():
                 sites_mapping[site][test] = set()
             sites_mapping[site][test].add(host)
+
+        # Conversion from sets to lists after data collection
+        for site, tests in sites_mapping.items():
+            for test in tests:
+                sites_mapping[site][test] = list(sites_mapping[site][test])
+
         stats[f'percent_{test}'] = percent
         stats[f'num_not_found_{test}'] = len(diff)
         stats[f'num_expected_{test}'] = len(expected_hosts_test)
-    # print(f"Hosts expected but not found in the Elasticsearch ps-owd({stats['percent_owd']}% ({stats['num_not_found_owd']}/{stats['num_expected_owd']}) out of included to configurations not found)\nHosts expected but not found in the Elasticsearch ps-trace({stats['percent_trace']}% ({stats['num_not_found_trace']}/{stats['num_expected_trace']}) out of included to configurations not found)\nHosts expected but not found in the Elasticsearch ps-owd({stats['percent_throughput']}% ({stats['num_not_found_throughput']}/{stats['num_expected_throughput']}) out of included to configurations not found)\n")
+
+    print(f"Hosts expected but not found in the Elasticsearch ps_throughput ({stats['percent_owd']}% ({stats['num_not_found_owd']}/{stats['num_expected_owd']}) out of included to configurations not found) \
+          \nHosts expected but not found in the Elasticsearch ps_trace ({stats['percent_trace']}% ({stats['num_not_found_trace']}/{stats['num_expected_trace']}) out of included to configurations not found) \
+          \nHosts expected but not found in the Elasticsearch ps_owd ({stats['percent_throughput']}% ({stats['num_not_found_throughput']}/{stats['num_expected_throughput']}) out of included to configurations not found)\n")
+
     for s in sites_mapping.keys():
         alarmOnSite = alarms('Networking', 'Sites', f"hosts not found")
         doc = {'from': m_from,
                'to': m_to,
                'site': s,
-               'hosts': sites_mapping[s]}
+               'hosts_not_found': sites_mapping[s]}
         toHash = ','.join([s, str(sites_mapping[s]), m_from, m_to, test])
+
         doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
+
+        # doc['tag'] = s
+        # docs.append(doc)
+
         alarmOnSite.addAlarm(body='not found in the Elasticsearch', tags=[s], source=doc)
-        # print(f"Hosts expected but not found in the Elasticsearch\n{s}\n{doc['hosts']}\n")
+        print(f"Hosts expected but not found in the Elasticsearch\n{s}\n{doc['hosts_not_found']}\n")
