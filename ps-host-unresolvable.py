@@ -4,11 +4,11 @@
 #                                               and checks if the hosts can be resolved by DNS queries. This can be
 #                                               used to identify hosts that might have gone offline or have invalid DNS
 #                                               records.
-# 
+#
 #                                               The process iterates through all hosts specified in each configuration,
-#                                               checks their DNS resolution status, and generates a list of hosts that 
-#                                               are no longer resolvable and configurations where they 
-#                                               still can be found. The output is a list of these hosts, indicating 
+#                                               checks their DNS resolution status, and generates a list of hosts that
+#                                               are no longer resolvable and configurations where they
+#                                               still can be found. The output is a list of these hosts, indicating
 #                                               that they should be updated or removed from the configuration.
 #
 # Author: Yana Holoborodko
@@ -20,6 +20,9 @@ import hashlib
 import urllib3
 from alarms import alarms
 from datetime import datetime
+from pymemcache.client import base
+
+
 def host_resolvable(host):
     """
     Checks whether the host is resolvable via DNS for either IPv4 or IPv6 addresses.
@@ -73,9 +76,13 @@ def main():
     alarmType = 'unresolvable host'
     # create the alarm objects
     alarmOnHost = alarms("Networking", 'Perfsonar', alarmType)
+
+    client = base.Client(('memcached.collectors', 11211))
+
     if not configs:
         print("No configurations found or failed to load the mesh configuration.")
         return
+
     inaccessible_hosts = {}
     for config, hosts in configs.items():
         # print("\n******************************************************")
@@ -86,19 +93,38 @@ def main():
                 inaccessible_hosts[host] = []
             inaccessible_hosts[host].append(config)
         # print("******************************************************\n")
+
     if inaccessible_hosts:
         # print("\nSummary:")
         for host, host_configs in inaccessible_hosts.items():
+
+            netsite_bytes = client.get(f'netsite_{host}')
+            site = ''
+            if netsite_bytes:
+                site = netsite_bytes.decode('utf-8')
+                # print('netsite', site)
+            else:
+                rcsite_bytes = client.get(f'rcsite_{host}')
+                if netsite_bytes:
+                    site = rcsite_bytes.decode('utf-8')
+
             doc = {
                 'host': host,
+                'site': site,
                 'configurations': host_configs,
                 'alarm_type': alarmType
             }
             current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             toHash = ','.join([host] + host_configs + [current_datetime])
             doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-            alarmOnHost.addAlarm(body=alarmType, tags=[host] + host_configs, source=doc)
-            print(f"Host '{host}' needs updates in configurations: {', '.join(host_configs)}")
+
+            tags = host_configs
+            # prevent insertion of empty site names
+            if site:
+                tags = [host_configs, site]
+
+            alarmOnHost.addAlarm(body=alarmType, tags=tags, source=doc)
+            print(f"Host '{host}' at {site} needs updates in configurations: {', '.join(host_configs)}")
     else:
         print("All hosts are resolvable. No updates needed.")
     return inaccessible_hosts
