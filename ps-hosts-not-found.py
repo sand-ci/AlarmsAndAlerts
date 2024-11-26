@@ -165,6 +165,7 @@ if __name__ == '__main__':
         for host in diff:
             netsite_bytes = client.get(f'netsite_{host}')
             # print('\n', host)
+            site = ''
             if netsite_bytes:
                 site = netsite_bytes.decode('utf-8')
                 # print('netsite', site)
@@ -177,14 +178,14 @@ if __name__ == '__main__':
                 # else:
                 #     site = mesh_config.get_site(host)
                 #     print(f"No data found for host {host} in Memcached. Taking site from mesh_config", site)
+            if site != '':
+                if site not in sites_mapping:
+                    type_subset = dict()
+                    sites_mapping[site] = type_subset
 
-            if site not in sites_mapping:
-                type_subset = dict()
-                sites_mapping[site] = type_subset
-
-            if test not in sites_mapping[site].keys():
-                sites_mapping[site][test] = set()
-            sites_mapping[site][test].add(host)
+                if test not in sites_mapping[site].keys():
+                    sites_mapping[site][test] = set()
+                sites_mapping[site][test].add(host)
 
         # Conversion from sets to lists after data collection
         for site, tests in sites_mapping.items():
