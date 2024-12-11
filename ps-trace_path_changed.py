@@ -691,7 +691,7 @@ def sendAlarms(data):
 
 # query the past 72 hours and split the period into 8 time ranges
 dateFrom, dateTo = hp.defaultTimeRange(72)
-dateFrom, dateTo ='2024-10-09T09:56:18.000Z','2024-10-12T09:56:18.000Z'
+# dateFrom, dateTo ='2024-10-09T09:56:18.000Z','2024-10-12T09:56:18.000Z'
 data = runInParallel(dateFrom, dateTo)
 df = pd.DataFrame(data)
 df = df[~(df['src']=='') & ~(df['dest']=='')]
