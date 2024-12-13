@@ -112,18 +112,12 @@ def main():
                 'host': host,
                 'site': site,
                 'configurations': host_configs,
-                'alarm_type': alarmType
             }
             current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             toHash = ','.join([host] + host_configs + [current_datetime])
             doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
 
-            tags = host_configs
-            # prevent insertion of empty site names
-            if site:
-                tags = [host_configs, site]
-
-            alarmOnHost.addAlarm(body=alarmType, tags=tags, source=doc)
+            alarmOnHost.addAlarm(body=alarmType, tags=host, source=doc)
             print(f"Host '{host}' at {site} needs updates in configurations: {', '.join(host_configs)}")
     else:
         print("All hosts are resolvable. No updates needed.")
