@@ -214,4 +214,4 @@ if __name__ == '__main__':
         # docs.append(doc)
 
         alarmOnSite.addAlarm(body='not found in the Elasticsearch', tags=[s], source=doc)
-        print(f"Hosts expected but not found in the Elasticsearch\n{s}\n{doc['hosts_not_found']}\n")
+        print(f"Hosts expected but not found in the Elasticsearch\n{s}\n{doc['hosts']}\n")
