@@ -117,7 +117,7 @@ def main():
             toHash = ','.join([host] + host_configs + [current_datetime])
             doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
 
-            alarmOnHost.addAlarm(body=alarmType, tags=host, source=doc)
+            alarmOnHost.addAlarm(body=alarmType, tags=[host], source=doc)
             print(f"Host '{host}' at {site} needs updates in configurations: {', '.join(host_configs)}")
     else:
         print("All hosts are resolvable. No updates needed.")

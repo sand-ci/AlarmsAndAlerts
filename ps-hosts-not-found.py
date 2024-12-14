@@ -205,7 +205,7 @@ if __name__ == '__main__':
         doc = {'from': m_from,
                'to': m_to,
                'site': s,
-               'hosts_not_found': sites_mapping[s]}
+               'hosts': sites_mapping[s]}
         toHash = ','.join([s, str(sites_mapping[s]), m_from, m_to, test])
 
         doc['alarm_id'] = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
