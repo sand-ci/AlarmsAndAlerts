@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 from collections import defaultdict
@@ -102,7 +102,7 @@ def build_query(start_time: str, end_time: str) -> Dict[str, Any]:
         }
     }
 
-def adjust_date_by_days_now(days: int, fixed_date: datetime = datetime.now(datetime.timezone.utc)) -> str:
+def adjust_date_by_days_now(days: int, fixed_date: datetime = datetime.now(timezone.utc)) -> str:
     """Adjusts the date by a given number of days."""
     adjusted_date_obj = fixed_date + timedelta(days=days)
     adjusted_date_str = adjusted_date_obj.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-3] + "Z"
@@ -172,7 +172,7 @@ def generate_ip_to_asn_mapping_batch(asn_paths: List[List[int]], ip_paths: List[
                 ip_to_asn[ip].add(asn)
     return ip_to_asn
 
-def combine_mappings(df: pd.DataFrame, max_threads: int, batch_size: int = BATCH_SIZE) -> Dict[str, set]:
+def map_ip_to_asn(df: pd.DataFrame, max_threads: int, batch_size: int = BATCH_SIZE) -> Dict[str, set]:
     """Combines IP to ASN mappings."""
     combined_mapping = defaultdict(set)
     def process_batch(batch_df: pd.DataFrame) -> Dict[str, set]:
@@ -213,8 +213,8 @@ def repair_asn_path(asn_path_list: List[int], ip_path_list: List[str], ip_to_asn
     path_len = len(repaired_path)
     return repaired_path, path_len, all_repaired
 
-def apply_repair_in_batches_with_asn_to_ip(df: pd.DataFrame, ip_to_asn_mapping: Dict[str, set], max_threads: int, batch_size: int = BATCH_SIZE) -> pd.DataFrame:
-    """Applies repair in batches using ASN to IP mapping."""
+def repair_ASN0_in_batches(df: pd.DataFrame, ip_to_asn_mapping: Dict[str, set], max_threads: int, batch_size: int = BATCH_SIZE) -> pd.DataFrame:
+    """Try to repair the 0 ASNs by using the IP addresses at."""
     def process_batch(batch: pd.DataFrame) -> List[Tuple[List[int], int, bool, List[str], bool]]:
         repaired_results = []
         for _, row in batch.iterrows():
@@ -283,12 +283,12 @@ def process_group(group_info: pd.Series, df: pd.DataFrame) -> pd.DataFrame:
     })
     return result_df
 
-def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int = 5) -> pd.DataFrame:
+def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int = 5, workers: int = 5) -> pd.DataFrame:
     """Processes data in batches."""
     global_results = pd.DataFrame()
     batches = [site_groups[i:i + batch_size] for i in range(0, len(site_groups), batch_size)]
     for batch in tqdm(batches, desc="Process pairs in groups"):
-        with ProcessPoolExecutor(max_workers=14) as executor:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = [executor.submit(process_group, row,
                                        df[(df['src_netsite'] == row['src_netsite'])\
                                        & (df['dest_netsite'] == row['dest_netsite'])\
@@ -301,9 +301,10 @@ def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int
                     print(f"Error processing batch: {e}")
     return global_results
 
-def detect_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
+def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
     """Detects anomalies in ASN paths."""
-    current_date = datetime.now(datetime.timezone.utc)
+    asn_stats['asn'] = asn_stats['asn'].astype(int)
+    current_date = datetime.now(timezone.utc)
     threshold_date = (current_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     anomalies = asn_stats[(asn_stats['on_path'] < 0.4) &
                         (asn_stats['asn'] > 0) &
@@ -328,31 +329,11 @@ def detect_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
                 source=doc
             )
 
-def generate_alarm_id(toHash: str) -> str:
-    """Generates an alarm ID."""
-    return hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-
-def get_time_ranges(start_date: str, end_date: str) -> List[Tuple[str, str]]:
-    """Gets time ranges between start and end dates."""
-    return generate_time_ranges(start_date, end_date, interval_hours=INTERVAL_HOURS)
-
-def query_data(time_ranges: List[Tuple[str, str]], max_threads: int) -> pd.DataFrame:
-    """Queries data in parallel."""
-    return parallel_querying_with_threads(time_ranges, max_threads)
-
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Processes the data."""
     df["asn_path_list"] = df["asn_path"].apply(lambda x: [int(i) for i in x.split('-')])
     df["ip_path_list"] = df["ip_path"].str.split('->')
     return df[['asn_path', 'ip_path', 'dt', 'asn_path_list', 'ip_path_list']].drop_duplicates(subset=['asn_path', 'ip_path'])
-
-def map_ip_to_asn(agg_df: pd.DataFrame, max_threads: int) -> Dict[str, set]:
-    """Maps IP to ASN."""
-    return combine_mappings(agg_df, max_threads, batch_size=BATCH_SIZE)
-
-def repair_data(df: pd.DataFrame, ip_to_asn_mapping: Dict[str, set]) -> pd.DataFrame:
-    """Try to repair the 0 ASNs by using the IP addresses at."""
-    return apply_repair_in_batches_with_asn_to_ip(df, ip_to_asn_mapping, max_threads=8, batch_size=BATCH_SIZE)
 
 def group_site_data(df: pd.DataFrame) -> pd.DataFrame:
     """Groups site data in order to reduce resources."""
@@ -360,16 +341,7 @@ def group_site_data(df: pd.DataFrame) -> pd.DataFrame:
         ['src_netsite', 'dest_netsite', 'ipv6']
     ).agg({'doc_count': 'sum', 'dt': 'count'}).reset_index()
 
-def process_asn_stats(site_groups: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
-    """Processes ASN statistics."""
-    return process_batches(site_groups, df, batch_size=50)
-
-def detect_and_log_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
-    """Detects and logs anomalies."""
-    asn_stats['asn'] = asn_stats['asn'].astype(int)
-    detect_anomalies(asn_stats, start_date)
-
-def monitor_resources(interval=1):
+def monitor_resources(interval=3):
     cpu_usage = []
     memory_usage = []
     disk_usage = []
@@ -417,20 +389,20 @@ def main():
     try:
         num_cores = os.cpu_count()
         max_threads = int((num_cores) * MAX_THREADS_MULTIPLIER)
-        end_date = datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        start_date = (datetime.now(datetime.timezone.utc) - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        start_date = (datetime.now(timezone.utc)- timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
-        time_ranges = get_time_ranges(start_date, end_date)
-        df = query_data(time_ranges, max_threads)
+        time_ranges = generate_time_ranges(start_date, end_date, interval_hours=INTERVAL_HOURS)
+        df = parallel_querying_with_threads(time_ranges, max_threads)
 
         agg_df = process_data(df)
-        ip_to_asn_mapping = map_ip_to_asn(agg_df, max_threads)
-        df = repair_data(df, ip_to_asn_mapping)
+        ip_to_asn_mapping = map_ip_to_asn(agg_df, max_threads, batch_size=BATCH_SIZE)
+        df = repair_ASN0_in_batches(df, ip_to_asn_mapping, max_threads=8, batch_size=BATCH_SIZE)
 
         site_groups = group_site_data(df)
-        asn_stats = process_asn_stats(site_groups, df)
+        asn_stats = process_batches(site_groups, df, batch_size=50, workers=10)
 
-        detect_and_log_anomalies(asn_stats, start_date)
+        detect_and_send_anomalies(asn_stats, start_date)
 
     except Exception as e:
         print(f"An error occurred: {e}")
