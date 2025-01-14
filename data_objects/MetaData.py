@@ -11,10 +11,9 @@ class MetaData(object):
 
     def __init__(self, dateFrom=None,  dateTo=None):
 
-      fmt = "%Y-%m-%d %H:%M"
-      now = hp.roundTime(datetime.now(timezone.utc))
-      dateTo = datetime.strftime(now, fmt)
-      dateFrom = datetime.strftime(now - timedelta(days=90), fmt)
+      current_date = datetime.now(timezone.utc)
+      dateTo = current_date.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+      dateFrom = (current_date- timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
       endpointsDf = self.getEndpoints([dateFrom, dateTo], True)
 
@@ -81,9 +80,9 @@ class MetaData(object):
                 {
                   "range": {
                     "timestamp": {
-                      "format": "yyyy-MM-dd HH:mm",
                       "gte": dt[0],
-                      "lte": dt[1]
+                      "lte": dt[1],
+                      "format": "strict_date_optional_time"
                     }
                   }
                 }
@@ -192,14 +191,6 @@ class MetaData(object):
 
         return mergeddf
 
-
-    @staticmethod
-    def combine_sites(row):
-        if pd.isna(row['_site_after']) or row['_site_after'] == '' or row['_site_after'] == 'UNKNOWN':
-            if not pd.isna(row['_site_before']) and row['_site_before'] != '' and row['_site_before'] != 'UNKNOWN':
-                return row['_site_before']
-
-        return row['_site_after']
 
 
     @staticmethod
