@@ -316,18 +316,22 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
                                 ).reset_index()
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
     possible_anomalous_pairs['to_date'] = start_date
-    ALARM = alarms('Networking', 'RENs', 'path changed v2')
-    for doc in possible_anomalous_pairs.to_dict('records'):
-        tags = [doc['src_netsite'], doc['dest_netsite']]
-        toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(current_date)])
-        alarm_id = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-        doc['alarm_id'] = alarm_id
-        print(f"Detected anomaly: {doc}")
-        ALARM.addAlarm(
-                body="Path anomaly detected",
-                tags=tags,
-                source=doc
-            )
+
+    if len(possible_anomalous_pairs)==0:
+      print('No unusual ASNs observed in the past day.')
+    else:
+      ALARM = alarms('Networking', 'RENs', 'path changed v2')
+      for doc in possible_anomalous_pairs.to_dict('records'):
+          tags = [doc['src_netsite'], doc['dest_netsite']]
+          toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(current_date)])
+          alarm_id = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
+          doc['alarm_id'] = alarm_id
+          print(f"Detected anomaly: {doc}")
+          ALARM.addAlarm(
+                  body="Path anomaly detected",
+                  tags=tags,
+                  source=doc
+              )
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Processes the data."""
@@ -341,7 +345,7 @@ def group_site_data(df: pd.DataFrame) -> pd.DataFrame:
         ['src_netsite', 'dest_netsite', 'ipv6']
     ).agg({'doc_count': 'sum', 'dt': 'count'}).reset_index()
 
-def monitor_resources(interval=3):
+def monitor_resources(interval=15):
     cpu_usage = []
     memory_usage = []
     disk_usage = []
