@@ -447,7 +447,6 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
 
             casns = compare2[compare2['pair'] == name]['asns_updated'].tolist()
             asns_expanded = list([j for i in casns for j in i])
-            counter = collections.Counter(asns_expanded)
 
             flag = False
             diff_temp = []
@@ -461,6 +460,9 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
                     for d in diff:
 
                         if d not in upbase:
+                            if d == asns[0] or d == asns[-1]:
+                                # if the ASN is the first or the last on the path, then it's not an alarm
+                                flag = False
                             if d in altsOfAlts.keys():
                                 # if none of the alternative ASNs is in the baseline path or the updated baseline list,
                                 # then flag it to True (meaning raise an alarm)
@@ -473,7 +475,6 @@ def getChanged(baseDf, compare2, updatedbaseLine, altsOfAlts, cricDict, cut):
                                 # there is no need for an alarm
                                 flag = not any(False if alt not in base or alt in upbase else True
                                                for alt in cricDict[d])
-
                             else:
                                 flag = True
 
