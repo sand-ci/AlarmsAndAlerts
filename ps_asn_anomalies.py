@@ -19,7 +19,7 @@ import utils.helpers as hp
 INTERVAL_HOURS = 2
 BATCH_SIZE = 1000  # Adjusted based on memory usage
 MAX_THREADS_MULTIPLIER = 1.5  # Adjusted based on CPU usage
-DAYS_BACK = 9
+DAYS_BACK = 6
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)  # Set to WARNING to reduce output
@@ -306,21 +306,33 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
     asn_stats['asn'] = asn_stats['asn'].astype(int)
     current_date = datetime.now(timezone.utc)
     threshold_date = (current_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-    anomalies = asn_stats[(asn_stats['on_path'] < 0.4) &
+
+    anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
                         (asn_stats['asn'] > 0) &
                         (asn_stats['positioned_last_freq'] == 0) & \
                         (asn_stats['first_appearance'] > threshold_date)]
-    possible_anomalous_pairs = anomalies.groupby(['src_netsite', 'dest_netsite', 'ipv6']).agg(
+
+    # get the exact number of tests
+    anomalies = anomalies.assign(on_path_count=anomalies['num_tests_pair'] * anomalies['on_path'])
+
+    # consider and ASN anomalous only if the an anomaly was seen more then 3 times
+    anomalies = anomalies[(anomalies['on_path_count'] > 3) & (anomalies['num_tests_pair'] > 10)]
+
+    # consider and ASN anomalous only if the an anomaly was seen more then 2 times
+    possible_anomalous_pairs = anomalies[(anomalies['on_path_count'] > 2)]\
+                                .groupby(['src_netsite', 'dest_netsite','ipv6'])\
+                                .agg(
                                     asn_count=('asn', 'count'),
                                     asn_list=('asn', list)
                                 ).reset_index()
+
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
     possible_anomalous_pairs['to_date'] = start_date
 
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
     else:
-      ALARM = alarms('Networking', 'RENs', 'path changed v2')
+      ALARM = alarms('Networking', 'RENs', 'ASN path anomalies')
       for doc in possible_anomalous_pairs.to_dict('records'):
           tags = [doc['src_netsite'], doc['dest_netsite']]
           toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(current_date)])
