@@ -9,4 +9,5 @@ scipy
 geopy
 psconfig-client
 pymemcache
+tqdm
 # ipython 
