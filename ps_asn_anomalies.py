@@ -301,11 +301,11 @@ def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int
                     print(f"Error processing batch: {e}")
     return global_results
 
-def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str) -> None:
+def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date: str) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
-    current_date = datetime.now(timezone.utc)
-    threshold_date = (current_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+    threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
                         (asn_stats['asn'] > 0) &
@@ -418,7 +418,7 @@ def main():
         site_groups = group_site_data(df)
         asn_stats = process_batches(site_groups, df, batch_size=50, workers=10)
 
-        detect_and_send_anomalies(asn_stats, start_date)
+        detect_and_send_anomalies(asn_stats, start_date, end_date)
 
     except Exception as e:
         print(f"An error occurred: {e}")
