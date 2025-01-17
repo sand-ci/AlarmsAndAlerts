@@ -10,5 +10,5 @@ geopy
 psconfig-client
 pymemcache
 tqdm
-pyarrow
+psutil
 # ipython 
