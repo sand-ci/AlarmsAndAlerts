@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 from collections import defaultdict
-import pyarrow as pa
 import psutil
 import hashlib
 import logging
