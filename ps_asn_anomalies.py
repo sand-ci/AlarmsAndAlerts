@@ -326,7 +326,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                                 ).reset_index()
 
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
-    possible_anomalous_pairs['to_date'] = start_date
+    possible_anomalous_pairs['to_date'] = end_date
 
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
@@ -334,7 +334,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
       ALARM = alarms('Networking', 'RENs', 'ASN path anomalies')
       for doc in possible_anomalous_pairs.to_dict('records'):
           tags = [doc['src_netsite'], doc['dest_netsite']]
-          toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(current_date)])
+          toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(end_date)])
           alarm_id = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
           doc['alarm_id'] = alarm_id
           print(f"Detected anomaly: {doc}")
