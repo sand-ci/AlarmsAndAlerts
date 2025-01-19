@@ -18,7 +18,7 @@ import utils.helpers as hp
 INTERVAL_HOURS = 2
 BATCH_SIZE = 1000  # Adjusted based on memory usage
 MAX_THREADS_MULTIPLIER = 1.5  # Adjusted based on CPU usage
-DAYS_BACK = 6
+DAYS_BACK = 7
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)  # Set to WARNING to reduce output
