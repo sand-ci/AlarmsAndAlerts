@@ -300,10 +300,10 @@ def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int
                     print(f"Error processing batch: {e}")
     return global_results
 
-def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date: str) -> None:
+def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
-    end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
@@ -326,7 +326,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                                 ).reset_index()
 
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
-    possible_anomalous_pairs['to_date'] = end_date
+    possible_anomalous_pairs['to_date'] = end_date_str
 
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
