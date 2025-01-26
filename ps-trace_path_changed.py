@@ -655,6 +655,7 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
         temp['from_date'] = dateFrom
         temp['to_date'] = dateTo
         temp['_index'] = 'ps_traces_changes'
+        temp['event'] = 'path changed',
         temp['diff'] = diff
         temp.update(baseLine[baseLine['pair']==pair]
                             [['src', 'dest', 'src_host', 'dest_host', 'src_site', 'dest_site']].to_dict('records')[0])
