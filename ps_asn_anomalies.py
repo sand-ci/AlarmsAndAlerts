@@ -9,6 +9,7 @@ import hashlib
 import logging
 from typing import List, Tuple, Dict, Any
 import time
+from elasticsearch.helpers import bulk
 
 from alarms import alarms
 from utils.helpers import timer
@@ -18,7 +19,7 @@ import utils.helpers as hp
 INTERVAL_HOURS = 2
 BATCH_SIZE = 1000  # Adjusted based on memory usage
 MAX_THREADS_MULTIPLIER = 1.5  # Adjusted based on CPU usage
-DAYS_BACK = 7
+DAYS_BACK = 6
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)  # Set to WARNING to reduce output
@@ -96,6 +97,13 @@ def build_query(start_time: str, end_time: str) -> Dict[str, Any]:
                         {"dest_netsite": {"terms": {"field": "dest_netsite"}}},
                         {"ipv6": {"terms": {"field": "ipv6"}}}
                     ]
+                },
+                "aggregations": {
+                    "last_appearance": {
+                        "max": {
+                            "field": "created_at"
+                        }
+                    }
                 }
             }
         }
@@ -138,6 +146,7 @@ def query_and_paginate(start_time: str, end_time: str) -> List[Dict[str, Any]]:
                 "dest_netsite": bucket["key"]["dest_netsite"].upper(),
                 "ipv6": bucket["key"]["ipv6"],
                 "doc_count": bucket["doc_count"],
+                "last_appearance_path": bucket["last_appearance"]["value_as_string"],
                 "dt": end_time
             })
         after_key = response["aggregations"]["unique_paths"].get("after_key")
@@ -300,6 +309,60 @@ def process_batches(site_groups: pd.DataFrame, df: pd.DataFrame, batch_size: int
                     print(f"Error processing batch: {e}")
     return global_results
 
+
+def sendToES(data):
+    for d in data:
+        try:
+            bulk(hp.es, [d], index='ps_traces_changes')
+        except Exception as e:
+            print(d,e)
+    print(f'Inserted {len(data)} documents')
+
+
+def store_paths_for_visualization(possible_anomalous_pairs, df):
+
+    def has_anomaly(path, anomalies):
+        return any(anomaly in path for anomaly in anomalies)
+
+    paths = []
+    for src, dest, ipv6, anomalies, alarm_id, end_date in possible_anomalous_pairs[['src_netsite','dest_netsite','ipv6', 'asn_list', 'alarm_id', 'to_date']].values:
+        print(src, dest, ipv6, anomalies)
+
+        subset = df[(df['src_netsite'] == src) &
+                    (df['dest_netsite'] == dest) &
+                    (df['ipv6'] == ipv6)
+                ].drop_duplicates(subset='asn_path')[['last_appearance_path', 'repaired_asn_path']].copy().reset_index()
+
+        df_sorted = subset.sort_values(by='last_appearance_path', ascending=False)
+
+        # Filter rows with and without anomalies
+        df_with_anomalies = df_sorted[df_sorted['repaired_asn_path'].apply(lambda x: has_anomaly(x, anomalies))]
+        df_without_anomalies = df_sorted[df_sorted['repaired_asn_path'].apply(lambda x: not has_anomaly(x, anomalies))]
+
+        # Define the desired sample size per category
+        desired_sample_size = 5
+
+        # Randomly sample from each subset; may need to adjust if there are insufficient data points
+        sampled_with_anomalies = df_with_anomalies.head(desired_sample_size)
+        sampled_without_anomalies = df_without_anomalies.head(desired_sample_size)
+
+        balanced_sample = pd.concat([sampled_with_anomalies, sampled_without_anomalies]).sample(frac=1, random_state=1).reset_index(drop=True)
+        balanced_sample = balanced_sample.sort_values('last_appearance_path')
+
+        doc = {
+            'event': 'ASN path anomalies',
+            'src_netsite': src,
+            'dest_netsite': dest,
+            'ipv6': ipv6,
+            'asn_list': anomalies,
+            'alarm_id': alarm_id,
+            'to_date': end_date,
+            'paths': balanced_sample[['last_appearance_path', 'repaired_asn_path']].to_dict('records'),
+        }
+        paths.append(doc)
+    sendToES(paths)
+
+
 def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
@@ -328,21 +391,32 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
     possible_anomalous_pairs['to_date'] = end_date_str
 
+    def compute_alarm_id(row):
+        to_hash = ','.join([row['src_netsite'], row['dest_netsite'], str(end_date)])
+        alarm_id = hashlib.sha224(to_hash.encode('utf-8')).hexdigest()
+        return alarm_id
+
+    # Apply the function across each row to calculate alarm_id
+    possible_anomalous_pairs['alarm_id'] = possible_anomalous_pairs.apply(compute_alarm_id, axis=1)
+
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
     else:
       ALARM = alarms('Networking', 'RENs', 'ASN path anomalies')
       for doc in possible_anomalous_pairs.to_dict('records'):
           tags = [doc['src_netsite'], doc['dest_netsite']]
-          toHash = ','.join([doc['src_netsite'], doc['dest_netsite'], str(end_date)])
-          alarm_id = hashlib.sha224(toHash.encode('utf-8')).hexdigest()
-          doc['alarm_id'] = alarm_id
           print(f"Detected anomaly: {doc}")
           ALARM.addAlarm(
                   body="Path anomaly detected",
                   tags=tags,
                   source=doc
               )
+
+    columns = ['src_netsite', 'dest_netsite', 'ipv6',
+               'last_appearance_path', 'repaired_asn_path', 'asn_path']
+    store_paths_for_visualization(
+            possible_anomalous_pairs, df[columns]
+        )
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Processes the data."""
