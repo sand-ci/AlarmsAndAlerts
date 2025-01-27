@@ -326,7 +326,7 @@ def store_paths_for_visualization(possible_anomalous_pairs, df):
 
     paths = []
     for src, dest, ipv6, anomalies, alarm_id, end_date in possible_anomalous_pairs[['src_netsite','dest_netsite','ipv6', 'asn_list', 'alarm_id', 'to_date']].values:
-        print(src, dest, ipv6, anomalies)
+        # print(src, dest, ipv6, anomalies)
 
         subset = df[(df['src_netsite'] == src) &
                     (df['dest_netsite'] == dest) &
@@ -363,10 +363,10 @@ def store_paths_for_visualization(possible_anomalous_pairs, df):
     sendToES(paths)
 
 
-def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str) -> None:
+def detect_and_send_anomalies(df: pd.DataFrame, asn_stats: pd.DataFrame, start_date: str, end_date: str) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
-    end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+    end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
@@ -389,10 +389,10 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                                 ).reset_index()
 
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
-    possible_anomalous_pairs['to_date'] = end_date_str
+    possible_anomalous_pairs['to_date'] = end_date
 
     def compute_alarm_id(row):
-        to_hash = ','.join([row['src_netsite'], row['dest_netsite'], str(end_date)])
+        to_hash = ','.join([row['src_netsite'], row['dest_netsite'], str(end_date), row['ipv']])
         alarm_id = hashlib.sha224(to_hash.encode('utf-8')).hexdigest()
         return alarm_id
 
@@ -412,10 +412,8 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                   source=doc
               )
 
-    columns = ['src_netsite', 'dest_netsite', 'ipv6',
-               'last_appearance_path', 'repaired_asn_path', 'asn_path']
     store_paths_for_visualization(
-            possible_anomalous_pairs, df[columns]
+            possible_anomalous_pairs, df
         )
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -491,7 +489,9 @@ def main():
         site_groups = group_site_data(df)
         asn_stats = process_batches(site_groups, df, batch_size=50, workers=10)
 
-        detect_and_send_anomalies(asn_stats, start_date, end_date)
+        columns = ['src_netsite', 'dest_netsite', 'ipv6',
+               'last_appearance_path', 'repaired_asn_path', 'asn_path']
+        detect_and_send_anomalies(asn_stats, start_date, end_date, df[columns])
 
     except Exception as e:
         print(f"An error occurred: {e}")
