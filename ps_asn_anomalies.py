@@ -363,10 +363,10 @@ def store_paths_for_visualization(possible_anomalous_pairs, df):
     sendToES(paths)
 
 
-def detect_and_send_anomalies(df: pd.DataFrame, asn_stats: pd.DataFrame, start_date: str, end_date: str) -> None:
+def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str, df: pd.DataFrame) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
-    end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
@@ -389,10 +389,10 @@ def detect_and_send_anomalies(df: pd.DataFrame, asn_stats: pd.DataFrame, start_d
                                 ).reset_index()
 
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
-    possible_anomalous_pairs['to_date'] = end_date
+    possible_anomalous_pairs['to_date'] = end_date_str
 
     def compute_alarm_id(row):
-        to_hash = ','.join([row['src_netsite'], row['dest_netsite'], str(end_date), row['ipv']])
+        to_hash = ','.join([row['src_netsite'], row['dest_netsite'], end_date_str, row['ipv']])
         alarm_id = hashlib.sha224(to_hash.encode('utf-8')).hexdigest()
         return alarm_id
 
