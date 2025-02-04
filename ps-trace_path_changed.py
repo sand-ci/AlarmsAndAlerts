@@ -681,7 +681,7 @@ def saveStats(diffs, ddf, probDf, baseLine, updatedbaseLine, compare2):
 # Sends the alarms
 @timer
 def sendAlarms(data):
-    ALARM = alarms('Networking', 'RENs', 'path changed')
+    ALARM = alarms('Networking', 'Network', 'path changed')
 
     for issue in data:
         ALARM.addAlarm(
