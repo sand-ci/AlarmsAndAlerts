@@ -202,10 +202,10 @@ df = df[~(df['src'].isnull()) & (df['src'] != '') & ~(df['dest'].isnull()) & (df
 
 # create the alarm types
 alarmDestHostsCantBeReachedFromAny = alarms(
-    "Networking", "Sites", "destination cannot be reached from any")
-alarmSrcHostsCantReachAny = alarms('Networking', 'Sites', "source cannot reach any")
+    "Networking", "Infrastructure", "destination cannot be reached from any")
+alarmSrcHostsCantReachAny = alarms('Networking', 'Infrastructure', "source cannot reach any")
 alarmDestCantBeReachedFromMulty = alarms(
-    'Networking', 'Sites', "destination cannot be reached from multiple")
+    'Networking', 'Infrastructure', "destination cannot be reached from multiple")
 
 # send alarms
 DestHostsCantBeReachedFromAny = findConstantIssuesOnOneEnd(start='dest', df=df,
