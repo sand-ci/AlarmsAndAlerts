@@ -158,7 +158,7 @@ def getStats(df, threshold):
     return sitesDf[((sitesDf['z']<=-threshold)|(sitesDf['z']>=threshold))&(sitesDf['dt']==last3days)].rename(columns={'value':'last3days_avg'}).round(2)
 
 
-def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
+def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, alarmCategory, minCount=5): #
     # we aim for exposing a single site which shows significant change in throughput from/to 5 (default value) other sites in total
     # below we find the total count of unique sites related to a single site name
     print(f'\n Number of events: {len(alarmsDf)} ({alarmType})')
@@ -169,8 +169,8 @@ def createAlarms(dateFrom, dateTo, alarmsDf, alarmType, minCount=5):
 
 
     # create the alarm objects
-    alarmOnPair = alarms('Networking', 'Sites', alarmType)
-    alarmOnMulty = alarms('Networking', 'Sites', f'{alarmType} from/to multiple sites')
+    alarmOnPair = alarms('Networking',  'Other', alarmType) # 'bandwidth increased', 'bandwidth decreased' both belong to the subcategory Other
+    alarmOnMulty = alarms('Networking',  alarmCategory, f'{alarmType} from/to multiple sites') # 'bandwidth decreased from/to multiple sites' belong to Network while 'bandwidth increased from/to multiple sites' to Other 
 
     rows2Delete = []
 
@@ -236,6 +236,6 @@ statsDf['from'] = dateFrom
 statsDf['to'] = dateTo
 
 # Bandwidth decreased
-createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased')
+createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']<=-2)], 'bandwidth decreased', 'Network')
 # Bandwidth recovery
-createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']>=2)], 'bandwidth increased')
+createAlarms(dateFrom, dateTo, statsDf[(statsDf['z']>=2)], 'bandwidth increased', 'Other')
