@@ -219,9 +219,9 @@ def sendSignificantLossAlarms(plsDf, cols):
     sign_ploss['avg_value'] = round(sign_ploss['avg_value']*100, 1)
 
     # Create the alarm types
-    alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
-    alarmOnPair = alarms('Networking', 'Sites', 'high packet loss')
-    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
+    alarmOnList = alarms('Networking', 'Other', 'high packet loss on multiple links')
+    alarmOnPair = alarms('Networking', 'Other', 'high packet loss')
+    alarmFirewall = alarms('Networking', 'Infrastructure', 'firewall issue')
 
     multisiteIssues = findMultiSiteIssues(sign_ploss)
 
