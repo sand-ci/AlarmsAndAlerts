@@ -177,7 +177,7 @@ df_hosts.correction.isna().sum()
 
 df_corr = df_hosts[abs(df_hosts['correction']) > 100]
 
-ALARM = alarms('Networking', 'Perfsonar', 'large clock correction')
+ALARM = alarms('Networking', 'Infrastructure', 'large clock correction')
 for (node, correction) in df_corr.values:
     # add site names to the list of tags
     site = ''
