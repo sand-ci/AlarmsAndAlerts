@@ -75,7 +75,7 @@ def main():
     configs = extract_configs_from_url(mesh_url)
     alarmType = 'unresolvable host'
     # create the alarm objects
-    alarmOnHost = alarms("Networking", 'Perfsonar', alarmType)
+    alarmOnHost = alarms("Networking", 'Infrastructure', alarmType)
 
     client = base.Client(('memcached.collectors', 11211))
 
