@@ -201,7 +201,7 @@ if __name__ == '__main__':
           \nHosts expected but not found in the Elasticsearch ps_owd ({stats['percent_throughput']}% ({stats['num_not_found_throughput']}/{stats['num_expected_throughput']}) out of included to configurations not found)\n")
 
     for s in sites_mapping.keys():
-        alarmOnSite = alarms('Networking', 'Sites', f"hosts not found")
+        alarmOnSite = alarms('Networking', 'Infrastructure', "hosts not found")
         doc = {'from': m_from,
                'to': m_to,
                'site': s,
