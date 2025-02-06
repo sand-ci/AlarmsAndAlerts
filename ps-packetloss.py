@@ -276,8 +276,8 @@ def sendSignificantLossAlarms(plsDf, cols):
 def sendCompleteLossAlarms(plsDf, cols):
     complete_ploss = plsDf[(plsDf['flag'] == 2)]
 
-    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
-    alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
+    alarmFirewall = alarms('Networking', 'Infrastructure', 'firewall issue')
+    alarmCompleteLoss = alarms('Networking', 'Infrastructure', 'complete packet loss')
 
     # Get the number of sources where the packet loss is 100%
     completeLossDestAgg = complete_ploss.drop_duplicates().groupby(['dest_host']).agg({'src_host': 'count'}).rename(
