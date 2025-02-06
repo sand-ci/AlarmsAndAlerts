@@ -104,7 +104,7 @@ while not bad_hosts_df.empty:
 #       list_of_hosts_with_bad_measurements)
 
 if len(list_of_hosts_with_bad_measurements):
-    ALARM = alarms('Networking', 'Perfsonar', 'bad owd measurements')
+    ALARM = alarms('Networking', 'Infrastructure', 'bad owd measurements')
     for bh in list_of_hosts_with_bad_measurements:
         # add site names to the list of tags
         site = ''
