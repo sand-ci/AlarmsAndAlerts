@@ -196,15 +196,16 @@ if __name__ == '__main__':
         stats[f'num_not_found_{test}'] = len(diff)
         stats[f'num_expected_{test}'] = len(expected_hosts_test)
 
-    print(f"Hosts expected but not found in the Elasticsearch ps_throughput ({stats['percent_owd']}% ({stats['num_not_found_owd']}/{stats['num_expected_owd']}) out of included to configurations not found) \
+    print(f"Hosts expected but not found in the Elasticsearch ps_owd ({stats['percent_owd']}% ({stats['num_not_found_owd']}/{stats['num_expected_owd']}) out of included to configurations not found) \
           \nHosts expected but not found in the Elasticsearch ps_trace ({stats['percent_trace']}% ({stats['num_not_found_trace']}/{stats['num_expected_trace']}) out of included to configurations not found) \
-          \nHosts expected but not found in the Elasticsearch ps_owd ({stats['percent_throughput']}% ({stats['num_not_found_throughput']}/{stats['num_expected_throughput']}) out of included to configurations not found)\n")
+          \nHosts expected but not found in the Elasticsearch ps_throughput ({stats['percent_throughput']}% ({stats['num_not_found_throughput']}/{stats['num_expected_throughput']}) out of included to configurations not found)\n")
 
     for s in sites_mapping.keys():
         alarmOnSite = alarms('Networking', 'Infrastructure', "hosts not found")
         doc = {'from': m_from,
                'to': m_to,
                'site': s,
+               'expected_vs_notFound_nums': {'owd': [stats['num_expected_owd'], stats['num_not_found_owd']], 'throughput': [stats['num_expected_throughput'], stats['num_not_found_throughput']], 'trace': [stats['num_expected_trace'], stats['num_not_found_trace']]},
                'hosts_not_found': sites_mapping[s]}
         toHash = ','.join([s, str(sites_mapping[s]), m_from, m_to, test])
 
