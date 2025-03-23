@@ -219,9 +219,9 @@ def sendSignificantLossAlarms(plsDf, cols):
     sign_ploss['avg_value'] = round(sign_ploss['avg_value']*100, 1)
 
     # Create the alarm types
-    alarmOnList = alarms('Networking', 'Sites', 'high packet loss on multiple links')
-    alarmOnPair = alarms('Networking', 'Sites', 'high packet loss')
-    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
+    alarmOnList = alarms('Networking', 'Other', 'high packet loss on multiple links')
+    alarmOnPair = alarms('Networking', 'Other', 'high packet loss')
+    alarmFirewall = alarms('Networking', 'Infrastructure', 'firewall issue')
 
     multisiteIssues = findMultiSiteIssues(sign_ploss)
 
@@ -276,8 +276,8 @@ def sendSignificantLossAlarms(plsDf, cols):
 def sendCompleteLossAlarms(plsDf, cols):
     complete_ploss = plsDf[(plsDf['flag'] == 2)]
 
-    alarmFirewall = alarms('Networking', 'Perfsonar', 'firewall issue')
-    alarmCompleteLoss = alarms('Networking', 'Perfsonar', 'complete packet loss')
+    alarmFirewall = alarms('Networking', 'Infrastructure', 'firewall issue')
+    alarmCompleteLoss = alarms('Networking', 'Infrastructure', 'complete packet loss')
 
     # Get the number of sources where the packet loss is 100%
     completeLossDestAgg = complete_ploss.drop_duplicates().groupby(['dest_host']).agg({'src_host': 'count'}).rename(

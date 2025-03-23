@@ -402,7 +402,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
     else:
-      ALARM = alarms('Networking', 'RENs', 'ASN path anomalies')
+      ALARM = alarms('Networking', 'Network', 'ASN path anomalies')
       for doc in possible_anomalous_pairs.to_dict('records'):
           tags = [doc['src_netsite'], doc['dest_netsite']]
           print(f"Detected anomaly: {doc}")
