@@ -29,7 +29,7 @@ def removeInvalid(tracedf):
     for idx, route, pair, hops, ipv, rm in tracedf[tracedf['ipv6']==True][['route-sha1', 'pair', 'hops', 'ipv6', 'for_removal']].itertuples():
         isIPv4 = None
         if len(hops) > 2:
-            if ipv == True: 
+            if ipv == True:
                 isIPv4 = re.search(pattern, hops[-1])
 
                 if isIPv4:
@@ -46,7 +46,7 @@ def removeInvalid(tracedf):
 
     tracedf = tracedf[~((tracedf['src_site'].isnull()) | (tracedf['dest_site'].isnull()))]
     tracedf = tracedf[tracedf['for_removal']==0]
-    
+
     return tracedf.drop(columns=['for_removal'])
 
 
@@ -183,23 +183,23 @@ def queryPSTrace(values):
        'destination_reached', 'ipv6', 'asns', 'src_site', 'dest_site',
        'n_hops', 'timestamp', 'src', 'looping', 'asns',
        'src_host',  'route-sha1', 'ttls', 'rtts', 'dest_host', 'hops', 'n_hops']
-    
+
     fields = [{"field": "timestamp", "format": "strict_date_optional_time"}]
 
     for args in values:
-        dt, src, dest, ipv6, throughput_Mb = args
+        dt, src, dest, ipv6, throughput_Mb, retransmits = args
 
         dtFrom, dtTo = calculateDatetimeRange(dt, "-20"), dt
         query = queryBySrcDest(src, dest, dtFrom, dtTo)
         # print(str(query).replace("\'", "\""))
-        
-        result =  hp.es.search(index='ps_trace', query=query, sort='timestamp:desc', 
+
+        result =  hp.es.search(index='ps_trace', query=query, sort='timestamp:desc',
                                fields=fields, size=1, _source=_source)
         for item in result['hits']['hits']:
             # print(item)
             r = item['_source']
             if len(r)>0:
-
+                r['retransmits'] = retransmits
                 r['throughput_Mb'] = throughput_Mb
                 r['throughput_ts'] = dt
                 tstamp = item['fields']['timestamp']
@@ -217,7 +217,7 @@ def queryPSTrace(values):
             r = item['_source']
             # print(item)
             if len(r)>0:
-
+                r['retransmits'] = retransmits
                 r['throughput_Mb'] = throughput_Mb
                 r['throughput_ts'] = dt
                 # r['packet_loss'] = loss
@@ -240,9 +240,9 @@ def hashRows(row):
 
 def getTracerouteData(trptdf):
     result = []
-    rows = trptdf[['timestamp', 'src', 'dest', 'ipv6', 'throughput_Mb']].drop_duplicates().values.tolist()
+    rows = trptdf[['timestamp', 'src', 'dest', 'ipv6', 'throughput_Mb', 'retransmits']].drop_duplicates().values.tolist()
     value_list = split_list(rows, 500)
-    
+
     with ThreadPoolExecutor(max_workers=100) as pool:
         # print('Starting parallel processing....')
         result = pool.map(queryPSTrace, value_list)
@@ -388,7 +388,7 @@ def get_as_number(ip):
         if response.status_code != 200 or data['status'] != 'success':
             # print(response)
             return -2
-            
+
 
         as_info = data.get('as', '')
         as_number = re.search(r'AS(\d+)', as_info)
@@ -536,8 +536,8 @@ def buildRoutersDataset(dt):
     tracedf = getTracerouteData(trptdf)
 
     df = tracedf[['timestamp','throughput_ts', 'hops_str', 'ttls_str', 'asns_str', 'rtts_str', 'ttls-hops_hash',
-                                 'src', 'dest', 'throughput_Mb', 'path_complete', 'destination_reached',
-                                 'route-sha1', 'ipv6', 'src_host', 'dest_host']].copy()
+                 'src', 'dest', 'throughput_Mb', 'retransmits', 'path_complete', 'destination_reached',
+                 'route-sha1', 'ipv6', 'src_host', 'dest_host']].copy()
 
     df.rename(columns={'timestamp': 'traceroute_ts'}, inplace=True)
 
@@ -557,7 +557,7 @@ def buildRoutersDataset(dt):
 
 
     routerDf = pd.DataFrame(router_list)
-    
+
     routerDf.loc[:, 'src'] = routerDf['src'].str.upper()
     routerDf.loc[:, 'dest'] = routerDf['dest'].str.upper()
     routerDf.loc[:, 'router'] = routerDf['router'].str.upper()
@@ -575,7 +575,7 @@ def buildRoutersDataset(dt):
     routerDf['dest_site'].fillna('', inplace=True)
 
     routerDf = routerDf.drop_duplicates(subset=['traceroute_ts', 'throughput_ts', 'ttls-hops_hash', 'src', 'dest',
-           'throughput_Mb', 'path_complete', 'destination_reached', 'route-sha1',
+           'throughput_Mb', 'retransmits', 'path_complete', 'destination_reached', 'route-sha1',
            'ipv6', 'src_host', 'dest_host', 'router', 'ttl', 'asn', 'rtt'], keep='first')
 
     routerDf = try_recover_ASNs(routerDf)
