@@ -10,6 +10,8 @@ import logging
 from typing import List, Tuple, Dict, Any
 import time
 from elasticsearch.helpers import bulk
+import hashlib
+from collections import defaultdict
 
 from alarms import alarms
 from utils.helpers import timer
@@ -319,13 +321,13 @@ def sendToES(data):
     print(f'Inserted {len(data)} documents')
 
 
-def store_paths_for_visualization(possible_anomalous_pairs, df):
+def store_sample_paths_for_visualization(possible_anomalous_pairs, df):
 
     def has_anomaly(path, anomalies):
         return any(anomaly in path for anomaly in anomalies)
 
     paths = []
-    for src, dest, ipv6, anomalies, alarm_id, end_date in possible_anomalous_pairs[['src_netsite','dest_netsite','ipv6', 'asn_list', 'alarm_id', 'to_date']].values:
+    for src, dest, ipv6, anomalies, alarm_id, end_date in possible_anomalous_pairs[['src_netsite','dest_netsite','ipv6', 'anomalies', 'alarm_id', 'to_date']].values:
         # print(src, dest, ipv6, anomalies)
 
         subset = df[(df['src_netsite'] == src) &
@@ -354,7 +356,7 @@ def store_paths_for_visualization(possible_anomalous_pairs, df):
             'src_netsite': src,
             'dest_netsite': dest,
             'ipv6': ipv6,
-            'asn_list': anomalies,
+            'anomalies': anomalies,
             'alarm_id': alarm_id,
             'to_date': end_date,
             'paths': balanced_sample[['last_appearance_path', 'repaired_asn_path']].to_dict('records'),
@@ -363,9 +365,112 @@ def store_paths_for_visualization(possible_anomalous_pairs, df):
     sendToES(paths)
 
 
+def process_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Processes the data."""
+    df["asn_path_list"] = df["asn_path"].apply(lambda x: [int(i) for i in x.split('-')])
+    df["ip_path_list"] = df["ip_path"].str.split('->')
+    return df[['asn_path', 'ip_path', 'dt', 'asn_path_list', 'ip_path_list']].drop_duplicates(subset=['asn_path', 'ip_path'])
+
+def group_site_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Groups site data in order to reduce resources."""
+    return df[['src_netsite', 'dest_netsite', 'ipv6', 'dt', 'doc_count']].groupby(
+        ['src_netsite', 'dest_netsite', 'ipv6']
+    ).agg({'doc_count': 'sum', 'dt': 'count'}).reset_index()
+
+
+def store_data_for_additional_plotting(
+    df: pd.DataFrame,
+    possible_anomalous_pairs: pd.DataFrame,
+    end_date: str
+):
+    """
+    For each row in possible_anomalous_pairs, compute:
+      - alarm_id
+      - heatmap matrix (positions, asns, probs)
+      - transitions list
+    and index a single doc per alarm_id into ES.
+    """
+    data = []
+    for _, alarm in possible_anomalous_pairs.iterrows():
+        src   = alarm['src_netsite']
+        dst   = alarm['dest_netsite']
+        ipv6  = alarm['ipv6']
+        anomalies = alarm['anomalies']
+        alarm_id  = alarm['alarm_id']
+
+
+        # filter only matching paths
+        grp = df[
+            (df['src_netsite'] == src) &
+            (df['dest_netsite'] == dst) &
+            (df['ipv6'] == ipv6)
+        ]
+        if grp.empty:
+            continue
+
+        # — 1) build heatmap data —
+        total_docs = grp['doc_count'].sum()
+        max_len    = grp['repaired_asn_path'].apply(len).max()
+        asns       = sorted({asn for path in grp['repaired_asn_path'] for asn in path})
+
+        # count weighted occurrences
+        counts = pd.DataFrame(0.0, index=asns, columns=list(range(max_len)))
+        for _, row in grp.iterrows():
+            w = row['doc_count']
+            for pos, asn in enumerate(row['repaired_asn_path']):
+                counts.at[asn, pos] += w
+
+        probs = counts.div(total_docs, axis=1).fillna(0.0)
+
+        heatmap = {
+            "positions": probs.columns.tolist(),
+            "asns":      probs.index.tolist(),
+            "probs":     probs.values.tolist()
+        }
+
+        # — 2) build transition list (unweighted, unique) —
+        transitions = []
+        seen = set()
+        for _, row in grp.iterrows():
+            path = row['repaired_asn_path']
+            for i, asn in enumerate(path):
+                if asn in anomalies and i > 0:
+                    if (str(path[i-1]) != str(asn)):
+                        rec = (
+                            src,
+                            path[i-1],
+                            str(asn),
+                            dst
+                        )
+                        if rec not in seen:
+                            seen.add(rec)
+                            transitions.append({
+                                "source_site":       src,
+                                "previously_used_asn": str(path[i-1]),
+                                "new_asn":            str(asn),
+                                "destination_site":   dst
+                            })
+
+        # — 3) assemble document —
+        doc = {
+            "alarm_id":      alarm_id,
+            "src_netsite":   src,
+            "dest_netsite":  dst,
+            "ipv6":          ipv6,
+            "anomalies":     anomalies,
+            "heatmap":       heatmap,
+            "transitions":   transitions,
+            "to_date" : end_date
+        }
+
+        data.append(doc)
+    sendToES(data)
+
+
 def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str, df: pd.DataFrame) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
+    end_date_str = end_date
     end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -385,7 +490,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                                 .groupby(['src_netsite', 'dest_netsite','ipv6'])\
                                 .agg(
                                     asn_count=('asn', 'count'),
-                                    asn_list=('asn', list)
+                                    anomalies=('asn', list)
                                 ).reset_index()
 
     possible_anomalous_pairs['ipv'] = possible_anomalous_pairs['ipv6'].apply(lambda x: 'IPv6' if x else 'IPv4')
@@ -398,6 +503,9 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
 
     # Apply the function across each row to calculate alarm_id
     possible_anomalous_pairs['alarm_id'] = possible_anomalous_pairs.apply(compute_alarm_id, axis=1)
+
+    store_sample_paths_for_visualization(possible_anomalous_pairs, df)
+    store_data_for_additional_plotting(df, possible_anomalous_pairs, end_date)
 
     if len(possible_anomalous_pairs)==0:
       print('No unusual ASNs observed in the past day.')
@@ -412,21 +520,8 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                   source=doc
               )
 
-    store_paths_for_visualization(
-            possible_anomalous_pairs, df
-        )
 
-def process_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Processes the data."""
-    df["asn_path_list"] = df["asn_path"].apply(lambda x: [int(i) for i in x.split('-')])
-    df["ip_path_list"] = df["ip_path"].str.split('->')
-    return df[['asn_path', 'ip_path', 'dt', 'asn_path_list', 'ip_path_list']].drop_duplicates(subset=['asn_path', 'ip_path'])
 
-def group_site_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Groups site data in order to reduce resources."""
-    return df[['src_netsite', 'dest_netsite', 'ipv6', 'dt', 'doc_count']].groupby(
-        ['src_netsite', 'dest_netsite', 'ipv6']
-    ).agg({'doc_count': 'sum', 'dt': 'count'}).reset_index()
 
 def monitor_resources(interval=15):
     cpu_usage = []
@@ -489,7 +584,7 @@ def main():
         site_groups = group_site_data(df)
         asn_stats = process_batches(site_groups, df, batch_size=50, workers=10)
 
-        columns = ['src_netsite', 'dest_netsite', 'ipv6',
+        columns = ['src_netsite', 'dest_netsite', 'ipv6', 'doc_count',
                'last_appearance_path', 'repaired_asn_path', 'asn_path']
         detect_and_send_anomalies(asn_stats, start_date, end_date, df[columns])
 
