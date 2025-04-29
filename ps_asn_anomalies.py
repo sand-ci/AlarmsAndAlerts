@@ -470,7 +470,6 @@ def store_data_for_additional_plotting(
 def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date_str: str, df: pd.DataFrame) -> None:
     """Detects anomalies in ASN paths."""
     asn_stats['asn'] = asn_stats['asn'].astype(int)
-    end_date_str = end_date
     end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
