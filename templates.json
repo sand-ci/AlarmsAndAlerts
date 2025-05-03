@@ -1,0 +1,209 @@
+[
+  {
+    "category": "Analytics",
+    "subcategory": "Frontier",
+    "event": "Failed queries",
+    "description": "Code running every 1h at UC k8s cluster. Checks all servers for: Rejected queries - server is busy and doesn't respond to the query; DB disconnections - the query was processed by the Frontier server but the Oracle DB terminated the connection; Unprocessed queries - Oracle DB returned data, but it wasn't sent to the querying job.The code can be found here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/frontier-failed-q.py",
+    "template": "Servers with failed queries:\n%{servers}\n. Affected tasks: \n%{tasks}\n\tConsult the following link to get a table with the most relevant taskids (beware that\nyou will have to select the appropriate time period in the upper right corner)\nhttps://atlas-kibana.mwt2.org:5601/s/frontier/goto/c72d263c3e2b86f394ab99211c99b613\n"
+  },
+  {
+    "category": "Analytics",
+    "subcategory": "Frontier",
+    "event": "Too many threads",
+    "description": "Code running every 1h at UC k8s cluster. Checks all servers too high thread count.The code can be found here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/frontier-threads.py",
+    "template": "Servers with too many threads:\n%{servers}."
+  },
+  {
+    "category": "Analytics",
+    "subcategory": "WFMS",
+    "event": "indexing",
+    "description": "Code running every 1h at UC k8s cluster, gets number of documents indexed in jobs and tasks indices. Alarm is generated if there are no idexed documents. The tag field contains affected type of data: jobs, tasks or task_parameters. Code is here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/job-task-indexing.py"
+  },
+  {
+    "category": "Analytics",
+    "subcategory": "Elasticsearch",
+    "event": "status",
+    "description": "Code running every 1h at UC k8s cluster, gets Elasticsearch cluster status. Status is reported in a tag field, and can be red or yellow (green is not reported). Body contains info on number of unassigned indices and running nodes. Code is here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/es-cluster-state.py"
+  },
+  {
+    "category": "Analytics",
+    "subcategory": "Frontier",
+    "event": "Bad SQL queries",
+    "description": "Code running every 3h at UC k8s cluster. Finds users and tasks creating bad SQL requests.The code can be found here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/frontier-bad-sql.py",
+    "template": "\tUsers createing bad requests:\n%{users}.\n\tTasks with bad requests:\n%{tkids}"
+  },
+  {
+    "category": "Virtual Placement",
+    "subcategory": "XCache",
+    "event": "dead server",
+    "description": "Code running every 30 min at UC k8s cluster, looking for vp_liveness document with live:false. The code can be found here: ",
+    "template": "Host: %{id} at site: %{site} reported dead at %{timestamp}."
+  },
+  {
+    "template": "Squids at site: %{site} had %{WNs} servers failover %{requests} requests and transfer %{data} bytes.",
+    "description": "Code running every 1h at UC k8s cluster, looking at wlcg failover data (http://wlcg-squid-monitor.cern.ch/failover/failoverATLAS/failover.html) and creating alarm if there are any failovers for sites that have SLATE squids. The code can be found here: https://github.com/ATLAS-Analytics/AlarmAndAlertService ",
+    "category": "SLATE",
+    "subcategory": "Squid",
+    "event": "failovers"
+  },
+  {
+    "category": "Virtual Placement",
+    "subcategory": "XCache",
+    "event": "large number of connections",
+    "description": "Code running every 30 min at UC k8s cluster, looking at grafana plot (https://grafana.mwt2.org/d/VaGAqefGk/open-xrootd-connections?orgId=1&viewPanel=2&from=now-2d&to=now) and creating alarm if number of concurrent connections from any XCache server goes over 200. The code can be found here: ",
+    "template": "XCache: %{xcache} has {%n_connections} to MWT2 dCache at %{timestamp}."
+  },
+  {
+    "category": "WFMS",
+    "subcategory": "User",
+    "event": "Too much walltime consumed",
+    "description": "Code running once per day at UC k8s cluster, looking for users that consumed a lot of walltime. The code can be found here:https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/top-users-AlarmJIRA.py",
+    "template": "User %{User} spent %{walltime} years of walltime by using %{cores} cores from %{jobs} jobs."
+  },
+  {
+    "category": "WFMS",
+    "subcategory": "User",
+    "event": "Large input data size",
+    "description": "Code running once per day at UC k8s cluster, looking for users that have large input data size. The code can be found here:https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/top-users-AlarmJIRA.py",
+    "template": "User %{User} read in %{data} TB of input data from %{jobs} jobs."
+  },
+  {
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "indexing",
+    "description": "Code running every 1h at UC k8s cluster, gets number of documents indexed in all of the Perfsonar indices in a specified time interval. It compares it to the counts in previous interval of the same duration. Alarm is generated if the count in the last interval is more than three times less than in previous interval. There are two codes, one running against UC ES and one against Nebraska ES instance. The tag field contains affected site name. Body field is currently empty. Code is here: https://github.com/ATLAS-Analytics/AlarmAndAlertService/blob/master/ps-indexing.py"
+  },
+  {
+    "template": "Server %{host} at %{site} went down.",
+    "description": "SLATE squid servers in container preStop report going down. Reasons can be a simple update but most probably there is some kind of host pressure (ephemeral storage, OOM,...).",
+    "category": "SLATE",
+    "subcategory": "Squid",
+    "event": "server down"
+  },
+  {
+    "template": "XCache %{server_ip} servers are failing but still sending heartbeats.",
+    "description": "Code every 5 min at UC k8s cluster, transfering always new rucio registered datasets through all xcaches that are visible from outside and are sending heartbeats. https://github.com/ivukotic/xcache-tester/ ",
+    "category": "Virtual Placement",
+    "subcategory": "XCache",
+    "event": "external test"
+  },
+  {
+    "template": "Host(s) %{hosts} @ %{site} cannot be reached from c{cannotBeReachedFrom} out of %{totalNumSites} source sites: %{cannotBeReachedFrom}.",
+    "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by \u003E20 sources (destination_reched=False from \u003E20 hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "destination cannot be reached from multiple"
+  },
+  {
+    "template": "Host(s) %{hosts} @ %{site} cannot be reached by any source out of %{num_hosts_other_end} hosts.",
+    "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot be reached by any source (destination_reched=False from all hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "destination cannot be reached from any"
+  },
+  {
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "large clock correction",
+    "description": "Code running every 24h at UC k8s cluster, calculates clock corrections for all nodes that appear as both source and destination. Alarm is generated if the calculated value is greater than 100ms. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-clock-corrections.py",
+    "template": "Node %{node} requires %{correction}ms correction."
+  },
+  {
+    "template": "Site: %{site}, perfsonar node: %{host} seems to have a firewall issue. Packet loss is 100% from at least 10 hosts. Аffected sites: %{sites}. More information could be found in pSDash: \n https://ps-dash.uc.ssl-hep.org/loss-delay/%{alarm_id}",
+    "description": "Code running every 24h at UC k8s cluster, calculates average packet loss for all the  src-dest pairs. Alarm is generated if the calculated value is equal to 100% and the site has complete packet loss to more than 10 other hosts. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-packetloss.py",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "firewall issue"
+  },
+  {
+    "template": "The average packet loss between source %{src_host} and destination %{dest_host} was p{avg_value}. More information could be found in pSDash: \n https://ps-dash.uc.ssl-hep.org/loss-delay/%{alarm_id}",
+    "description": "Code running every 3h at UC k8s cluster, calculates average packet loss for all the  src-dest pairs. Alarm is generated if the calculated value is greater than 2%. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-packetloss.py",
+    "category": "Networking",
+    "subcategory": "Other",
+    "event": "high packet loss"
+  },
+  {
+    "template": "Bandwidth improved  for %{ipv} links between site %{site} to sites: %{dest_sites}, change in percentages: %{dest_change}; and from sites: %{src_sites}, change in percentages: %{src_change} with respect to the 21-day average. More information could be found in pS-Dash: \n https://ps-dash.uc.ssl-hep.org/throughput/%{alarm_id}",
+    "description": "Code running once a day at UC k8s cluster, checks for site-related significant increase in bandwidth. Alarm is generated if throughput value is above 1.9 sigma the last 3 days (based on a 21-day period) on more than 5 other sites. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-throughput.py. The tag field contains affected site name",
+    "category": "Networking",
+    "subcategory": "Other",
+    "event": "bandwidth increased from/to multiple sites"
+  },
+  {
+    "template": "Bandwidth decreased for the %{ipv} links between site %{site} to sites: %{dest_sites} change in percentages: %{dest_change}; and from sites: %{src_sites}, change in percentages: %{src_change} with respect to the 21-day average. More information could be found in pS-Dash: \n https://ps-dash.uc.ssl-hep.org/throughput/%{alarm_id}",
+    "description": "Code running once a day at UC k8s cluster, checks for site-related network issue. Alarm is generated if throughput value is below 1.9 sigma in the last 3 days (based on a 21-day period) on more than 5 other sites. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-throughput.py. The tag field contains affected site name",
+    "category": "Networking",
+    "subcategory": "Network",
+    "event": "bandwidth decreased from/to multiple sites"
+  },
+  {
+    "template": "Host(s) %{hosts} @ %{site} cannot reach any destination out of %{num_hosts_other_end} hosts.",
+    "description": "Code running once a day at UC k8s cluster, checks in ps_trace for issues with reaching a destination. Alarm is generated if host cannot reach any destination (destination_reched=False to all tested hosts). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-trace.py. The tag field contains affected site name",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "source cannot reach any"
+  },
+  {
+    "template": "From site: %{src}, perfsonar node: %{src_host} to destination site: %{dest_site}, node: %{dest_host}, there was a complete packet loss. This measurement is based on %{tests_done} of the nominal number of tests. More information could be found in pSDash: \n https://ps-dash.uc.ssl-hep.org/loss-delay/%{alarm_id}",
+    "description": "Code running every 3h at UC k8s cluster, calculates average packet loss for all the  src-dest pairs. Alarm is generated if the calculated value is equal to 100%. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-packetloss.py",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "complete packet loss"
+  },
+  {
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "bad owd measurements",
+    "description": "Code running every 24h at UC k8s cluster. Alarm is generated if a node has OWD measurements greater than 100s. Body contains node name or IP. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-clock-corrections.py",
+    "template": "Node %{node} would require correction of %{correction}ms."
+  },
+  {
+    "template": "The following host is not resolvable in the given configurations:\n%{host}\nConfigurations affected:\n%{configurations}\nPlease review and update the DNS entries or configurations as needed to resolve the issue.",
+    "description": "This code checks whether all hosts in various configurations are resolvable via DNS. It is executed once a week and takes as input a mesh configuration that contains multiple configurations and hosts. For each host, it performs a DNS resolution check. If a host is not resolvable, it is flagged, and the corresponding configuration is noted for necessary updates. This process is essential for keeping the network and results of other alarms and alerts reliable and up-to-date. TAGS: host name. The code can be found here: [https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-host-unresolvable.py].",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "unresolvable host"
+  },
+  {
+    "template": "In the past 12 hours, path between %{num_pairs} pairs diverged and went through ASN %{asn} owned by %{owner}. The change affected the following sites %{sites}. The code can be found on pS-Dash: https://ps-dash.uc.ssl-hep.org/paths/%{alarm_id}",
+    "description": "Code running every 12 hours at UC k8s cluster, checks in ps_trace for changes on the lists of AS numbers. Alarm is generated if an ASN is flagged between \u003E 10 source-destination pairs.",
+    "category": "Networking",
+    "subcategory": "Network",
+    "event": "path changed"
+  },
+  {
+    "template": "The following hosts have been found in configurations, but not in the Elasticsearch\n%{site}\n%{hosts_not_found}.",
+    "description": "This code checks whether the throughput/trace/latency data for configured hosts are found in the Elasticsearch. It is executed weekly and takes a list of expected hosts as input. It reports sites and corresponding hosts that are mentioned in the configurations, but no data is present for them in Elasticsearch. TAGS: site name . The code can be found here: [https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-hosts-not-found.py].",
+    "category": "Networking",
+    "subcategory": "Infrastructure",
+    "event": "hosts not found"
+  },
+  {
+    "template": "Bandwidth improved for %{ipv} links between sites %{src_site} and %{dest_site}. Average throughput is %{last3days_avg}MB, increased by %{change}% with respect to the 21-day average. More information could be found in pS-Dash: \n https://ps-dash.uc.ssl-hep.org/throughput/%{alarm_id}",
+    "description": "Code running once a day at UC k8s cluster, checks for site to site significant increase in bandwidth. Alarm is generated if throughput value is above 2 sigma the last 3 days (based on a 21-day period). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-throughput.py. The tag field contains affected site names",
+    "category": "Networking",
+    "subcategory": "Other",
+    "event": "bandwidth increased"
+  },
+  {
+    "template": "Bandwidth decreased for the %{ipv} links between sites %{src_site} and %{dest_site}. Current throughput is %{last3days_avg} MB, dropped by %{change}% with respect to the 21-day-average. More information could be found in pS-Dash: \n https://ps-dash.uc.ssl-hep.org/throughput/%{alarm_id}",
+    "description": "Code running once a day at UC k8s cluster, checks for site to site bandwidth degradation. Alarm is generated if throughput value is below 2 sigma the last 3 days (based on a 21-day period). The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-throughput.py. The tag field contains affected site names",
+    "category": "Networking",
+    "subcategory": "Other",
+    "event": "bandwidth decreased"
+  },
+  {
+    "template": "The %{ipv} path between %{src_netsite} and %{dest_netsite} has changed. The new path includes the following ASN(s): %{asn_list}. More information could be found in pS-Dash: \n https://ps-dash.uc.ssl-hep.org/anomalous_paths/src_netsite=%{src_netsite}&dest_netsite=%{dest_netsite}",
+    "description": "This code raises alerts when a new ASN appears on the path between 2 endpoints. The code can be found here: [https://github.com/sand-ci/AlarmsAndAlerts/blob/main/TBD.py].",
+    "category": "Networking",
+    "subcategory": "Network",
+    "event": "ASN path anomalies"
+  },
+  {
+    "template": "Site %{site} is experiencing high packet loss to and from multiple locations.  \nAffected destination sites: %{dest_sites}. \nAffected source sites: %{src_sites}. /nMore information could be found in pSDash: \nhttps://ps-dash.uc.ssl-hep.org/loss-delay/%{alarm_id}",
+    "description": "Code running every 3h at UC k8s cluster, calculates average packet loss for all the  src-dest pairs. Alarm is generated if the calculated value is greater than 2%. The code can be found here: https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-packetloss.py",
+    "category": "Networking",
+    "subcategory": "Other",
+    "event": "high packet loss on multiple links"
+  }
+]
