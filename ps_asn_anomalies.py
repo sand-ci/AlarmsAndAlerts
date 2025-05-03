@@ -502,6 +502,8 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
 
     # Apply the function across each row to calculate alarm_id
     possible_anomalous_pairs['alarm_id'] = possible_anomalous_pairs.apply(compute_alarm_id, axis=1)
+    end_date = end_date.strftime("%Y-%m-%d")
+    possible_anomalous_pairs['to_date'] = end_date
 
     store_sample_paths_for_visualization(possible_anomalous_pairs, df)
     store_data_for_additional_plotting(df, possible_anomalous_pairs, end_date)
