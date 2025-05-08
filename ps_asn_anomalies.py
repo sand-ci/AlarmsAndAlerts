@@ -392,14 +392,12 @@ def store_data_for_additional_plotting(
     """
     data = []
     for _, alarm in possible_anomalous_pairs.iterrows():
-        src   = alarm['src_netsite']
-        dst   = alarm['dest_netsite']
-        ipv6  = alarm['ipv6']
-        anomalies = alarm['anomalies']
-        alarm_id  = alarm['alarm_id']
+        src        = alarm['src_netsite']
+        dst        = alarm['dest_netsite']
+        ipv6       = alarm['ipv6']
+        anomalies  = alarm['anomalies']
+        alarm_id   = alarm['alarm_id']
 
-
-        # filter only matching paths
         grp = df[
             (df['src_netsite'] == src) &
             (df['dest_netsite'] == dst) &
@@ -412,58 +410,65 @@ def store_data_for_additional_plotting(
         total_docs = grp['doc_count'].sum()
         max_len    = grp['repaired_asn_path'].apply(len).max()
         asns       = sorted({asn for path in grp['repaired_asn_path'] for asn in path})
-
-        # count weighted occurrences
-        counts = pd.DataFrame(0.0, index=asns, columns=list(range(max_len)))
+        counts     = pd.DataFrame(0.0, index=asns, columns=range(max_len))
         for _, row in grp.iterrows():
             w = row['doc_count']
             for pos, asn in enumerate(row['repaired_asn_path']):
                 counts.at[asn, pos] += w
-
         probs = counts.div(total_docs, axis=1).fillna(0.0)
-
         heatmap = {
             "positions": probs.columns.tolist(),
             "asns":      probs.index.tolist(),
             "probs":     probs.values.tolist()
         }
 
-        # — 2) build transition list (unweighted, unique) —
-        transitions = []
-        seen = set()
-        for _, row in grp.iterrows():
-            path = row['repaired_asn_path']
-            for i, asn in enumerate(path):
-                if asn in anomalies and i > 0:
-                    if (str(path[i-1]) != str(asn)):
-                        rec = (
-                            src,
-                            path[i-1],
-                            str(asn),
-                            dst
-                        )
-                        if rec not in seen:
-                            seen.add(rec)
-                            transitions.append({
-                                "source_site":       src,
-                                "previously_used_asn": str(path[i-1]),
-                                "new_asn":            str(asn),
-                                "destination_site":   dst
-                            })
+        # — split into anomalous vs normal —
+        anom_paths   = grp[ grp['repaired_asn_path']
+                            .apply(lambda p: any(a in p for a in anomalies)) ]
+        normal_paths = grp.drop(anom_paths.index)
 
-        # — 3) assemble document —
+        # — find the first anomaly across all anom_paths —
+        first_occurrences = []
+        for path in anom_paths['repaired_asn_path']:
+            # for this path, find (pos,asn) of first anomalous ASN
+            idxs = [(i, a) for i,a in enumerate(path) if a in anomalies]
+            if idxs:
+                first_occurrences.append(min(idxs, key=lambda x: x[0]))
+        if not first_occurrences:
+            continue
+
+        # pick the earliest across *all* paths
+        first_pos, first_asn = min(first_occurrences, key=lambda x: x[0])
+
+        # — collect normal-path predecessors at that same position —
+        prevs = [
+            path[first_pos-1]
+            for path in normal_paths['repaired_asn_path']
+            if len(path) > first_pos and path[first_pos-1] != 0
+        ]
+        # dedupe & sort
+        prevs = sorted(set(prevs))
+
+        transitions = [{
+            "source_site":         src,
+            "previously_used_asn": prevs,
+            "new_asn":             [first_asn],
+            "destination_site":    dst
+        }]
+
+        # — assemble and send —
         doc = {
-            "alarm_id":      alarm_id,
-            "src_netsite":   src,
-            "dest_netsite":  dst,
-            "ipv6":          ipv6,
-            "anomalies":     anomalies,
-            "heatmap":       heatmap,
-            "transitions":   transitions,
-            "to_date" : end_date
+            "alarm_id":       alarm_id,
+            "src_netsite":    src,
+            "dest_netsite":   dst,
+            "ipv6":           ipv6,
+            "anomalies":      anomalies,
+            "heatmap":        heatmap,
+            "transitions":    transitions,
+            "to_date":        end_date
         }
-
         data.append(doc)
+
     sendToES(data)
 
 
