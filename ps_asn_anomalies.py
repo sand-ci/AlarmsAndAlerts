@@ -257,7 +257,7 @@ def repair_ASN0_in_batches(df: pd.DataFrame, ip_to_asn_mapping: Dict[str, set], 
 
 def process_group(group_info: pd.Series, df: pd.DataFrame) -> pd.DataFrame:
     """Processes a group of data."""
-    src, dest, ipv, doc_count = group_info['src_netsite'], group_info['dest_netsite'], group_info['ipv6'], group_info['doc_count']
+    src, dest, ipv = group_info['src_netsite'], group_info['dest_netsite'], group_info['ipv6']
     subset = df[(df['src_netsite'] == src) & (df['dest_netsite'] == dest) & (df['ipv6'] == ipv)].copy().reset_index()
     max_length = subset["path_len"].max()
     pivot_df = pd.DataFrame(
@@ -265,31 +265,48 @@ def process_group(group_info: pd.Series, df: pd.DataFrame) -> pd.DataFrame:
         index=subset.index,
         columns=[f"asn_{i+1}" for i in range(max_length)]
     )
+
+    # 2) list of all ASNs
     unique_rids = pd.Series(pivot_df.stack().unique()).dropna().tolist()
-    value_counts_per_row = pivot_df.apply(lambda row: row.value_counts(), axis=1).fillna(0)
-    first_last_appearance = {
+
+    # 3) first/last appearance
+    first_last = {
         rid: {
             "first_appearance": subset.loc[pivot_df.isin([rid]).any(axis=1), "dt"].min(),
-            "last_appearance": subset.loc[pivot_df.isin([rid]).any(axis=1), "dt"].max(),
+            "last_appearance":  subset.loc[pivot_df.isin([rid]).any(axis=1), "dt"].max(),
         }
         for rid in unique_rids
     }
-    last_non_null_asn = pivot_df.apply(lambda row: row.dropna().iloc[-1], axis=1)
-    last_asn_counts = last_non_null_asn.value_counts()
-    asn_last_freq = {asn: last_asn_counts.get(asn, 0) / len(last_non_null_asn) for asn in unique_rids}
+
+    # 4) last‐position frequencies (unchanged)
+    last_non_null = pivot_df.apply(lambda r: r.dropna().iloc[-1], axis=1)
+    last_counts   = last_non_null.value_counts()
+    asn_last_freq = {asn: last_counts.get(asn, 0) / len(last_non_null) for asn in unique_rids}
+
+    # 5) compute weighted on-path counts
+    #    for each RID, sum subset.doc_count for rows where pivot_df contains it
+    on_path_weighted = []
+    for rid in unique_rids:
+        mask = pivot_df.isin([rid]).any(axis=1)
+        on_path_weighted.append(subset.loc[mask, 'doc_count'].sum())
+
+    total_tests = subset['doc_count'].sum()
+
     result_df = pd.DataFrame({
-        "src_netsite": src,
-        'dest_netsite': dest,
-        "ipv6": ipv,
-        "num_tests_pair": doc_count,
-        "asn": unique_rids,
-        "asn_total_count": value_counts_per_row.sum(axis=0).reindex(unique_rids, fill_value=0),
-        "on_path": [
-            pivot_df.isin([rid]).any(axis=1).mean() for rid in unique_rids
-        ],
-        "first_appearance": [first_last_appearance[rid]["first_appearance"] for rid in unique_rids],
-        "last_appearance": [first_last_appearance[rid]["last_appearance"] for rid in unique_rids],
-        "positioned_last_freq": [asn_last_freq.get(rid, 0) for rid in unique_rids],
+        "src_netsite":           src,
+        "dest_netsite":          dest,
+        "ipv6":                  ipv,
+        "num_tests_pair":        total_tests,
+        "asn":                   unique_rids,
+        "asn_total_count":       pivot_df.apply(lambda r: r.value_counts(), axis=1)
+                                              .sum(axis=0)
+                                              .reindex(unique_rids, fill_value=0)
+                                              .astype(int),
+        "on_path":               on_path_weighted/total_tests,             # weighted %
+        "on_path_count":         on_path_weighted,         # weighted by doc_count
+        "first_appearance":      [ first_last[r]["first_appearance"] for r in unique_rids],
+        "last_appearance":       [ first_last[r]["last_appearance"]  for r in unique_rids],
+        "positioned_last_freq":  [ asn_last_freq.get(r,0)  for r in unique_rids],
     })
     return result_df
 
@@ -478,20 +495,17 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
     end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
-    anomalies = asn_stats[(asn_stats['on_path'] < 0.3) &
+    anomalies = asn_stats[(asn_stats['on_path'] < 0.3) & (asn_stats['on_path_count'] > 3) &
                         (asn_stats['asn'] > 0) &
                         (asn_stats['positioned_last_freq'] == 0) & \
                         (asn_stats['first_appearance'] > threshold_date)]
 
-    # get the exact number of tests
-    anomalies = anomalies.assign(on_path_count=anomalies['num_tests_pair'] * anomalies['on_path'])
 
     # consider and ASN anomalous only if the an anomaly was seen more then 3 times
-    anomalies = anomalies[(anomalies['on_path_count'] > 3) & (anomalies['num_tests_pair'] > 10)]
+    anomalies = anomalies[(anomalies['num_tests_pair'] > 10)]
 
     # consider and ASN anomalous only if the an anomaly was seen more then 2 times
-    possible_anomalous_pairs = anomalies[(anomalies['on_path_count'] > 2)]\
-                                .groupby(['src_netsite', 'dest_netsite','ipv6'])\
+    possible_anomalous_pairs = anomalies.groupby(['src_netsite', 'dest_netsite','ipv6'])\
                                 .agg(
                                     asn_count=('asn', 'count'),
                                     anomalies=('asn', list)
@@ -579,6 +593,7 @@ def main():
         max_threads = int((num_cores) * MAX_THREADS_MULTIPLIER)
         end_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         start_date = (datetime.now(timezone.utc)- timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        print(f"Period: {start_date} - {end_date}")
 
         time_ranges = generate_time_ranges(start_date, end_date, interval_hours=INTERVAL_HOURS)
         df = parallel_querying_with_threads(time_ranges, max_threads)
