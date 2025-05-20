@@ -495,16 +495,13 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
     end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     threshold_date = (end_date - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
+    # consider an ASN anomalous only if the anomaly was seen on >3 paths after the threshold_date.
+    # The pair shoud have at least 10 traceroutes and the anomaly should not be the last values on the ASN sequence
     anomalies = asn_stats[(asn_stats['on_path'] < 0.3) & (asn_stats['on_path_count'] > 3) &
-                        (asn_stats['asn'] > 0) &
+                        (asn_stats['asn'] > 0) &  (asn_stats['num_tests_pair'] > 10) &
                         (asn_stats['positioned_last_freq'] == 0) & \
                         (asn_stats['first_appearance'] > threshold_date)]
 
-
-    # consider and ASN anomalous only if the an anomaly was seen more then 3 times
-    anomalies = anomalies[(anomalies['num_tests_pair'] > 10)]
-
-    # consider and ASN anomalous only if the an anomaly was seen more then 2 times
     possible_anomalous_pairs = anomalies.groupby(['src_netsite', 'dest_netsite','ipv6'])\
                                 .agg(
                                     asn_count=('asn', 'count'),
