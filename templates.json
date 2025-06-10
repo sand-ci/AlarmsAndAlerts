@@ -205,5 +205,12 @@
     "category": "Networking",
     "subcategory": "Other",
     "event": "high packet loss on multiple links"
+  },
+  {
+    "template": "\n%{message}",
+    "description": "This code goes through all the sites, generates the message with the link to its report, and sends it to a user. It is executed weekly. It provides the link to the webpage. TAGS: site name . The code can be found here: [https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps-site-report.py].",
+    "category": "Networking",
+    "subcategory": "Report",
+    "event": "weekly site report"
   }
 ]
