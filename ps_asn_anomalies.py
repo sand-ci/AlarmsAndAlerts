@@ -549,9 +549,9 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                 (possible_anomalous_pairs['src_netsite'] == site) | 
                 (possible_anomalous_pairs['dest_netsite'] == site)
             ]
-            print(f"SITE: {site}")
-            print("-------------------anomalies----------------------")
-            print(site_anomalies)
+            # print(f"SITE: {site}")
+            # print("-------------------anomalies----------------------")
+            # print(site_anomalies)
             
             alarm_doc = {
                     'site': site,
@@ -566,7 +566,7 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
             alarm_id = hashlib.sha224(to_hash.encode('utf-8')).hexdigest()
             alarm_doc['alarm_id'] = alarm_id
             print(f"Detected anomalies for site {site}: ")
-            print(alarm_doc)
+            # print(alarm_doc)
             # pprint.pprint(alarm_doc)
             ALARM_PER_SITE.addAlarm(
                 body=f"ASN path anomalies detected for site {site}",
