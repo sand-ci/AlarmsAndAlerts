@@ -525,19 +525,54 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
     store_data_for_additional_plotting(df, possible_anomalous_pairs, end_date)
 
     if len(possible_anomalous_pairs)==0:
-      print('No unusual ASNs observed in the past day.')
+        print('No unusual ASNs observed in the past day.')
     else:
-      ALARM = alarms('Networking', 'Network', 'ASN path anomalies')
-      for doc in possible_anomalous_pairs.to_dict('records'):
-          tags = [doc['src_netsite'], doc['dest_netsite']]
-          print(f"Detected anomaly: {doc}")
-          ALARM.addAlarm(
-                  body="Path anomaly detected",
-                  tags=tags,
-                  source=doc
-              )
-
-
+        ALARM = alarms('Networking', 'Network', 'ASN path anomalies')
+        for doc in possible_anomalous_pairs.to_dict('records'):
+            tags = [doc['src_netsite'], doc['dest_netsite']]
+            print(f"Detected anomaly: {doc}")
+            ALARM.addAlarm(
+                    body="Path anomaly detected",
+                    tags=tags,
+                    source=doc
+                )
+        # alarm per site
+        ALARM_PER_SITE = alarms('Networking', 'Network', 'ASN path anomalies per site')
+        # print("ALARM PER SITE")
+        all_sites = pd.concat([
+            possible_anomalous_pairs['src_netsite'],
+            possible_anomalous_pairs['dest_netsite']
+        ]).unique()
+        
+        for site in all_sites:
+            site_anomalies = possible_anomalous_pairs[
+                (possible_anomalous_pairs['src_netsite'] == site) | 
+                (possible_anomalous_pairs['dest_netsite'] == site)
+            ]
+            print(f"SITE: {site}")
+            print("-------------------anomalies----------------------")
+            print(site_anomalies)
+            
+            alarm_doc = {
+                    'site': site,
+                    'total_paths_anomalies': len(site_anomalies),
+                    'as_source_to': site_anomalies[site_anomalies['src_netsite'] == site]['dest_netsite'].tolist(),
+                    'as_destination_from': site_anomalies[site_anomalies['dest_netsite'] == site]['src_netsite'].tolist(),
+                    'all_alarm_ids_src': [(row['src_netsite'], row['alarm_id']) for _, row in site_anomalies[site_anomalies['dest_netsite'] == site].iterrows()],
+                    'all_alarm_ids_dest': [(row['dest_netsite'], row['alarm_id']) for _, row in site_anomalies[site_anomalies['src_netsite'] == site].iterrows()],
+                    'to_date': site_anomalies['to_date'].iloc[0]
+                }
+            to_hash = ','.join([alarm_doc['site'], alarm_doc['to_date'], str(alarm_doc['as_source_to']), str(alarm_doc['as_destination_from'])])
+            alarm_id = hashlib.sha224(to_hash.encode('utf-8')).hexdigest()
+            alarm_doc['alarm_id'] = alarm_id
+            print(f"Detected anomalies for site {site}: ")
+            print(alarm_doc)
+            # pprint.pprint(alarm_doc)
+            ALARM_PER_SITE.addAlarm(
+                body=f"ASN path anomalies detected for site {site}",
+                tags=[site],
+                source=alarm_doc
+            )
 
 
 def monitor_resources(interval=15):
