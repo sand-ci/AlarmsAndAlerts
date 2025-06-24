@@ -523,3 +523,16 @@ def get_metadata(dateFrom, dateTo):
                               'admin_email': item['key']['admin_email'], 'ipv6': item['key']['ipv6'],
                               'ipv4': item['key']['ipv4']}
     return res_meta
+
+def getMetaData():
+    meta = []
+    data = scan(hp.es, index='ps_alarms_meta')
+    for item in data:
+        meta.append(item['_source'])
+
+    if meta:
+        return pd.DataFrame(meta)
+    else:
+        print('No metadata!')
+        return None
+      

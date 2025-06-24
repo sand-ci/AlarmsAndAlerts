@@ -129,11 +129,10 @@ def check_data_difference_in_es(data_from, data_to, test_type, expected_hosts):
 if __name__ == '__main__':
 
     today_date = dt.date.today()
-    delta = today_date - dt.timedelta(days=2)
     time_from = dt.time(0, 0)
     time_to = dt.time(23, 59, 59)
-    m_from = dt.datetime.combine(delta, time_from).strftime('%Y-%m-%dT%H:%M:%S.000Z')
-    m_to = dt.datetime.combine(delta, time_to).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    m_from = dt.datetime.combine(today_date, time_from).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    m_to = dt.datetime.combine(today_date, time_to).strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
     client = base.Client(('memcached.collectors', 11211))
 
@@ -215,3 +214,4 @@ if __name__ == '__main__':
 
         alarmOnSite.addAlarm(body='not found in the Elasticsearch', tags=[s], source=doc)
         print(f"Hosts expected but not found in the Elasticsearch\n{s}\n{doc['hosts_not_found']}\n")
+        
