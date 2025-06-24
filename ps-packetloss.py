@@ -173,6 +173,7 @@ def markPairs(dateFrom, dateTo):
     df['flag'] = df['value'].apply(lambda val: setFlag(val))
     df.rename(columns={'value': 'avg_value'}, inplace=True)
     df = df.round({'avg_value': 3})
+    df['avg_value'] = round(df['avg_value']*100, 1)
 
     return df
 
@@ -204,7 +205,7 @@ def findMultiSiteIssues(sign_ploss, threshold=5):
             data[host] = cnt
         else:
             data[host] = data[host]+cnt
-        
+
         if data[host] >= threshold:
             if host not in passedThrsh:
                 passedThrsh.append(host)
@@ -216,7 +217,6 @@ def findMultiSiteIssues(sign_ploss, threshold=5):
 
 def sendSignificantLossAlarms(plsDf, cols):
     sign_ploss = plsDf[(plsDf['flag'] == 1)][cols].groupby(cols[:-1]).mean().reset_index()
-    sign_ploss['avg_value'] = round(sign_ploss['avg_value']*100, 1)
 
     # Create the alarm types
     alarmOnList = alarms('Networking', 'Other', 'high packet loss on multiple links')
