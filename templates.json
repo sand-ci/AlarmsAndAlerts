@@ -212,5 +212,12 @@
     "category": "Networking",
     "subcategory": "Report",
     "event": "weekly site report"
+  },
+  {
+    "template": "%{total_paths_anomalies} path change(s) were detected involving site %{site}. New ASN(s) appeared on routes where %{site} acted as a source to %{as_source_to}, and as a destination from the following sources: %{as_destination_from}. \n\nFor further details, please refer to pS-Dash:\nhttps://ps-dash.uc.ssl-hep.org/anomalous_paths/site=%{site}&date=%{to_date}",
+    "description": "This code raises alerts when new ASN(s) appear on the paths between 2 endpoints for a certain site. The code can be found here: [https://github.com/sand-ci/AlarmsAndAlerts/blob/main/ps_asn_anomalies.py].",
+    "category": "Networking",
+    "subcategory": "Network",
+    "event": "ASN path anomalies per site"
   }
 ]
