@@ -558,8 +558,8 @@ def detect_and_send_anomalies(asn_stats: pd.DataFrame, start_date: str, end_date
                     'total_paths_anomalies': len(site_anomalies),
                     'as_source_to': site_anomalies[site_anomalies['src_netsite'] == site]['dest_netsite'].tolist(),
                     'as_destination_from': site_anomalies[site_anomalies['dest_netsite'] == site]['src_netsite'].tolist(),
-                    'all_alarm_ids_src': [(row['src_netsite'], row['alarm_id']) for _, row in site_anomalies[site_anomalies['dest_netsite'] == site].iterrows()],
-                    'all_alarm_ids_dest': [(row['dest_netsite'], row['alarm_id']) for _, row in site_anomalies[site_anomalies['src_netsite'] == site].iterrows()],
+                    'all_alarm_ids_src': [(row['src_netsite'], row['alarm_id'], row['anomalies']) for _, row in site_anomalies[site_anomalies['dest_netsite'] == site].iterrows()],
+                    'all_alarm_ids_dest': [(row['dest_netsite'], row['alarm_id'], row['anomalies']) for _, row in site_anomalies[site_anomalies['src_netsite'] == site].iterrows()],
                     'to_date': site_anomalies['to_date'].iloc[0]
                 }
             to_hash = ','.join([alarm_doc['site'], alarm_doc['to_date'], str(alarm_doc['as_source_to']), str(alarm_doc['as_destination_from'])])
