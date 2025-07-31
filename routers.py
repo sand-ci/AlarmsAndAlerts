@@ -40,11 +40,11 @@ def removeInvalid(tracedf):
             tracedf.iat[idx, tracedf.columns.get_loc('for_removal')] = 1
             j+=1
 
-    nullsite = len(tracedf[(tracedf['src_site'].isnull()) | (tracedf['dest_site'].isnull())])
+    nullsite = len(tracedf[(tracedf['src_netsite'].isnull()) | (tracedf['dest_netsite'].isnull())])
 
     print(f'{round(((i+j+nullsite)/len(tracedf))*100,0)}% invalid entries removed.')
 
-    tracedf = tracedf[~((tracedf['src_site'].isnull()) | (tracedf['dest_site'].isnull()))]
+    tracedf = tracedf[~((tracedf['src_netsite'].isnull()) | (tracedf['dest_netsite'].isnull()))]
     tracedf = tracedf[tracedf['for_removal']==0]
 
     return tracedf.drop(columns=['for_removal'])
@@ -103,8 +103,8 @@ def getThroughputData(dt):
         trptdf.loc[:, 'throughput_Mb'] = trptdf['throughput'].apply(lambda x: round(x*1e-6))
 
         trptdf['pair'] = trptdf['src']+'-'+trptdf['dest']
-        trptdf.loc[:, 'ssite'] = trptdf['src_site']
-        trptdf.loc[:, 'dsite'] = trptdf['dest_site']
+        trptdf.loc[:, 'ssite'] = trptdf['src_netsite']
+        trptdf.loc[:, 'dsite'] = trptdf['dest_netsite']
 
         trptdf = trptdf[~(trptdf['ssite'].isnull()) & ~(trptdf['dsite'].isnull()) \
         & ~(trptdf['timestamp'].isnull())]
@@ -180,7 +180,7 @@ def queryPSTrace(values):
     data = []
 
     _source = ['max_rtt', 'dest', 'src_netsite', 'dest_netsite', 'path_complete',
-       'destination_reached', 'ipv6', 'asns', 'src_site', 'dest_site',
+       'destination_reached', 'ipv6', 'asns', 'src_netsite', 'dest_netsite',
        'n_hops', 'timestamp', 'src', 'looping', 'asns',
        'src_host',  'route-sha1', 'ttls', 'rtts', 'dest_host', 'hops', 'n_hops']
 
@@ -211,7 +211,7 @@ def queryPSTrace(values):
 
         dtFrom, dtTo = dt, calculateDatetimeRange(dt, "+20")
         query = queryBySrcDest(src, dest, dtFrom, dtTo)
-        result =  hp.es.search(index='ps_trace', query=query, sort='timestamp:asc', 
+        result =  hp.es.search(index='ps_trace', query=query, sort='timestamp:asc',
                        fields=fields, size=1, _source=_source)
         for item in result['hits']['hits']:
             r = item['_source']
@@ -254,12 +254,12 @@ def getTracerouteData(trptdf):
     tracedf = pd.DataFrame(tracedata)
 
     tracedf = tracedf[~tracedf['hops'].isnull()]
-    tracedf.loc[:, 'src_site'] = tracedf['src_site'].str.upper()
-    tracedf.loc[:, 'dest_site'] = tracedf['dest_site'].str.upper()
+    tracedf.loc[:, 'src_netsite'] = tracedf['src_netsite'].str.upper()
+    tracedf.loc[:, 'dest_netsite'] = tracedf['dest_netsite'].str.upper()
     # tracedf.loc[:, 'dt'] = tracedf['timestamp']
     tracedf['pair'] = tracedf['src']+'-'+tracedf['dest']
-    tracedf['ssite'] = tracedf['src_site']
-    tracedf['dsite'] = tracedf['dest_site']
+    tracedf['ssite'] = tracedf['src_netsite']
+    tracedf['dsite'] = tracedf['dest_netsite']
     tracedf['site_pair'] = tracedf['ssite']+' -> '+tracedf['dsite']
     tracedf = removeInvalid(tracedf)
 
@@ -464,7 +464,7 @@ def calculate_similarity(list1, list2, ttl1=None, ttl2=None):
     start_index = find_start_of_overlap(list1, list2)
     overlap_length = min(len(list1) - start_index, len(list2))
 
-    if set(list2).issubset(set(list1)) or set(list1).issubset(set(list2)): 
+    if set(list2).issubset(set(list1)) or set(list1).issubset(set(list2)):
         # Find the number of additional IPs
         extra_ips = abs(len(list1) - len(list2))
         # Calculate the similarity score
@@ -619,7 +619,6 @@ def sendToES(router_list, max_retries=3, retry_delay=5):
 
 past12h = get_past_12_hours()
 # past12h = ['2024-01-19T12:05:00.000Z', '2024-01-21T05:34:14.122910Z']
-df = buildRoutersDataset(past12h)
 router_list = buildRoutersDataset(past12h)
 sendToES(router_list)
 
@@ -634,7 +633,7 @@ sendToES(router_list)
 #             .agg(lambda x: x.mode()[0])  # Find the mode (most common value) for 'asn'
 #             .reset_index()  # Reset index to turn the result into a DataFrame
 #         )
-        
+
 #         # Create a dictionary for mapping routers to most common asn
 #     additional_router_to_asn = dict(zip(asn_mode['router'], asn_mode['asn']))
 #     router_to_asn.update(additional_router_to_asn)
