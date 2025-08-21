@@ -430,13 +430,18 @@ def find_multi_site_delay_issues(anomalous_df, threshold=5):
 
 
 def convert_to_iso_format(date_str):
-    """Convert date from 'YYYY-MM-DD HH:MM' to ISO 8601 format 'YYYY-MM-DDTHH:MM:00Z'"""
-    try:
-        dt = datetime.strptime(date_str, 'YYYY-MM-DDTHH:MM:00Z')
-        return dt.strftime('%Y-%m-%dT%H:%M:00Z')
-    except:
-        # If parsing fails, return original string
-        return date_str
+    """Convert date string to ISO 8601 format 'YYYY-MM-DDTHH:MM:SS.000Z' for ES compatibility."""
+    from datetime import datetime
+    # Try parsing with known formats
+    for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ']:
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            # Always output with seconds and Z
+            return dt.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+        except Exception:
+            continue
+    # If parsing fails, return original string
+    return date_str
 
 def send_high_owd_alarms(anomalous_df, test_mode=False):
     """Send appropriate alarms for high OWD events"""
@@ -514,7 +519,6 @@ def send_high_owd_alarms(anomalous_df, test_mode=False):
     ]
     
     for _, row in individual_issues.iterrows():
-        to_hash = ','.join([row['src_site'], row['dest_site'], row['from'], row['to']])
         doc = {
             'alarm_type': 'individual high delay',
             'src_site': row['src_site'],
