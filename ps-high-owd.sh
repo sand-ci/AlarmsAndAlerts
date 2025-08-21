@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run the high one-way delay detection script
+# Run the high one-way delay detection script.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
