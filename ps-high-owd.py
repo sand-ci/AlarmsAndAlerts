@@ -22,8 +22,6 @@ def get_expected_owd(src_site, dest_site, time_window=7, field_type='netsite', r
     Calculate expected OWD baseline for a site pair over a time window ending at reference_date.
     Returns dict with owd_stats: avg, p95, iqr, etc.
     """
-    from datetime import timedelta, datetime
-
     # If reference_date is not provided, use now
     if reference_date is None:
         reference_date = datetime.utcnow()
@@ -66,18 +64,39 @@ def get_expected_owd(src_site, dest_site, time_window=7, field_type='netsite', r
     stats = result.get('aggregations', {}).get('delay_stats', {})
     percentiles = result.get('aggregations', {}).get('delay_percentiles', {}).get('values', {})
 
+    # Defensive: If percentiles are missing, set to None
+    def safe_get(d, key):
+        v = d.get(key)
+        # if v is None: print(f"[WARNING] Missing {key} in data for {src_site} -> {dest_site}")
+        return v if v is not None else None
+
     # Calculate IQR (75th - 50th percentile)
     iqr = None
-    if '75.0' in percentiles and '50.0' in percentiles:
-        iqr = percentiles['75.0'] - percentiles['50.0']
+    p75 = safe_get(percentiles, '75.0')
+    p50 = safe_get(percentiles, '50.0')
+    if p75 is not None and p50 is not None:
+        iqr = p75 - p50
+
+    # Diagnostics for missing baseline data
+    missing_fields = []
+    for field, val in [('avg', safe_get(stats, 'avg')),
+                       ('p95', safe_get(percentiles, '95.0')),
+                       ('iqr', iqr),
+                       ('median', p50)]:
+        if val is None:
+            missing_fields.append(field)
+    # if missing_fields:
+    #     print(f"[BASELINE DIAGNOSTICS] Missing baseline fields for {src_site} -> {dest_site}: {missing_fields}")
+    #     print(f"  Raw stats: {stats}")
+    #     print(f"  Raw percentiles: {percentiles}")
 
     owd_stats = {
-        'avg': stats.get('avg'),
-        'p95': percentiles.get('95.0'),
+        'avg': safe_get(stats, 'avg'),
+        'p95': safe_get(percentiles, '95.0'),
         'iqr': iqr,
-        'median': percentiles.get('50.0'),
-        'max': stats.get('max'),
-        'min': stats.get('min')
+        'median': p50,
+        'max': safe_get(stats, 'max'),
+        'min': safe_get(stats, 'min')
     }
     return {'owd_stats': owd_stats}
 
@@ -250,19 +269,19 @@ def process_single_pair(row_data, date_from, date_to):
         owd_stats = baseline['owd_stats']
         baseline_p95 = owd_stats.get('p95')
         baseline_mean = owd_stats.get('avg')
+        baseline_iqr = owd_stats.get('iqr')
 
-        if baseline_p95 is None or baseline_mean is None:
+        # Defensive: skip if any required baseline stats are None
+        if baseline_p95 is None or baseline_mean is None or baseline_iqr is None:
             return None
 
         # Adaptive threshold: 1.5x baseline P95 or baseline + 2*IQR, whichever is higher
-        baseline_iqr = owd_stats.get('iqr', baseline_p95 * 0.2)  # fallback to 20% of p95
         adaptive_threshold = max(
             baseline_p95 * 1.5,
             baseline_mean + (2 * baseline_iqr)
         )
 
-        # Choose which delay metric to use for current measurement
-        # Use median for pairs with negative mean delays (clock sync issues)
+        # Defensive: skip if current delay values are None
         if row_data.get('use_median', False):
             current_delay = row_data['delay_median']
             current_p95 = row_data['delay_p95']
@@ -271,6 +290,9 @@ def process_single_pair(row_data, date_from, date_to):
             current_delay = row_data['delay_mean']
             current_p95 = row_data['delay_p95']
             delay_type = 'mean'
+
+        if current_delay is None or current_p95 is None:
+            return None
 
         # Check if current delay exceeds adaptive threshold
         if current_p95 > adaptive_threshold:
@@ -298,7 +320,7 @@ def process_single_pair(row_data, date_from, date_to):
         return None  # No anomaly detected
 
     except Exception as e:
-        print(f"Error processing {row_data['src_site']} -> {row_data['dest_site']}: {e}")
+        print(f"Error processing {row_data.get('src_site', '')} -> {row_data.get('dest_site', '')}: {e}")
         return None
 
 
@@ -401,7 +423,7 @@ def detect_high_owd_with_baselines(date_from: str, date_to: str, max_workers=10)
                     anomalous_delays.append(result)
                 
                 completed += 1
-                if completed % 50 == 0:  # Progress indicator
+                if completed % 500 == 0:  # Progress indicator
                     print(f"   Processed {completed}/{len(row_dicts)} pairs...")
                     
             except Exception as e:
@@ -517,8 +539,10 @@ def send_high_owd_alarms(anomalous_df, test_mode=False):
         ~((anomalous_df['src_site'].isin(multi_site_issues)) |
           (anomalous_df['dest_site'].isin(multi_site_issues)))
     ]
-    
+
     for _, row in individual_issues.iterrows():
+        to_hash = ','.join([row['src_site'], row['dest_site'], str(row['to'])])
+
         doc = {
             'alarm_type': 'individual high delay',
             'src_site': row['src_site'],
@@ -570,6 +594,7 @@ def parse_datetime_string(dt_str):
         except Exception:
             continue
     raise ValueError(f"Could not parse datetime string: {dt_str}")
+
 
 if __name__ == "__main__":
     test_mode = False
