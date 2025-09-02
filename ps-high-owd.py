@@ -509,8 +509,8 @@ def send_high_owd_alarms(anomalous_df, test_mode=False):
         doc = {
             'alarm_type': 'multi-site high delay',
             'site': site,
-            'affected_src_sites': src_sites,
-            'affected_dest_sites': dest_sites,
+            'src_sites': src_sites,
+            'dest_sites': dest_sites,
             'avg_severity_multiplier': round(avg_severity, 2),
             'max_delay_p95': round(max_delay, 2),
             'total_affected_pairs': len(site_issues),
