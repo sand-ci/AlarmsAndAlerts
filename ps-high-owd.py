@@ -498,9 +498,9 @@ def send_high_owd_alarms(anomalous_df, test_mode=False):
             (anomalous_df['dest_site'] == site)
         ]
         
-        src_sites = site_issues[site_issues['src_site'] == site]['dest_site'].tolist()
-        dest_sites = site_issues[site_issues['dest_site'] == site]['src_site'].tolist()
-        
+        dest_sites = site_issues[site_issues['src_site'] == site]['dest_site'].tolist()
+        src_sites = site_issues[site_issues['dest_site'] == site]['src_site'].tolist()
+
         # Calculate average severity
         avg_severity = site_issues['severity_multiplier'].mean()
         max_delay = site_issues['current_delay_p95'].max()
