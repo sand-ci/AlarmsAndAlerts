@@ -3,9 +3,14 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import re
 from geopy.geocoders import Nominatim
+import requests
 
 import utils.helpers as hp
-
+import ssl
+import urllib3
+import time
+from elasticsearch.exceptions import ConnectionTimeout, TransportError
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class MetaData(object):
 
@@ -56,17 +61,65 @@ class MetaData(object):
 
     @staticmethod
     def locateCountry(df):
-        geolocator = Nominatim(user_agent="my_app")
+        # Create SSL context that bypasses certificate verification        
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        
+        geolocator = Nominatim(
+            user_agent="my_app",
+            ssl_context=ctx,
+            timeout=15
+        )
+
+        def get_country_backup(lat, lon):
+            """Backup method using REST Countries API via coordinates"""
+            try:
+                # Use a simple REST API that doesn't require SSL
+                url = f"http://api.geonames.org/countryCodeJSON?lat={lat}&lng={lon}&username=demo"
+                response = requests.get(url, timeout=10, verify=False)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'countryName' in data:
+                        return data['countryName']
+                        
+            except Exception as e:
+                print(f"Backup geocoding also failed for {lat}, {lon}: {e}")
+            
+            return None
 
         def get_country(lat, lon):
-          location = geolocator.reverse((lat, lon), exactly_one=True, language='en')
-          return location.raw['address']['country']
+            try:
+                # Try Nominatim first
+                for attempt in range(2):  # Reduced attempts for primary method
+                    try:
+                        location = geolocator.reverse(
+                            (lat, lon), 
+                            exactly_one=True, 
+                            language='en', 
+                            timeout=10
+                        )
+                        if location and hasattr(location, 'raw') and 'address' in location.raw and 'country' in location.raw['address']:
+                            return location.raw['address']['country']
+                    except Exception as e:
+                        if attempt == 1:  # Last attempt with Nominatim
+                            print(f"Nominatim failed for {lat}, {lon}: {e}")
+                            break
+                        time.sleep(1)
+                
+                # Try backup method
+                print(f"Trying backup geocoding for {lat}, {lon}")
+                return get_country_backup(lat, lon)
+                
+            except Exception as e:
+                print(f"All geocoding methods failed for {lat}, {lon}: {e}")
+                return None
 
-        unique_lat_lon = df[['lat', 'lon']].drop_duplicates()
+        unique_lat_lon = df[['lat', 'lon']].dropna().drop_duplicates()
         unique_lat_lon['country'] = unique_lat_lon.apply(lambda row: get_country(row['lat'], row['lon']), axis=1)
         lat_lon_to_country = dict(zip(unique_lat_lon.set_index(['lat', 'lon']).index, unique_lat_lon['country']))
 
-        df['country'] = df.apply(lambda row: lat_lon_to_country.get((row['lat'], row['lon'])), axis=1)
+        df['country'] = df.apply(lambda row: lat_lon_to_country.get((row['lat'], row['lon'])) if pd.notna(row['lat']) and pd.notna(row['lon']) else None, axis=1)
 
         return df
 
@@ -142,7 +195,29 @@ class MetaData(object):
         # print(str(query).replace("\'", "\""))
         # print(str(aggregations).replace("\'", "\""))
         data = []
-        aggdata = hp.es.search(index=idx, query=query, aggregations=aggregations, size=0)
+        
+        # Add retry logic for Elasticsearch queries
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                aggdata = hp.es.search(
+                    index=idx, 
+                    query=query, 
+                    aggregations=aggregations, 
+                    size=0,
+                    timeout='30s',
+                    request_timeout=30
+                )
+                break
+            except (ConnectionTimeout, TransportError) as e:
+                if attempt == max_retries - 1:
+                    print(f"Failed to query {idx} {endpoint} after {max_retries} attempts: {e}")
+                    return pd.DataFrame()  # Return empty DataFrame on final failure
+                print(f"Query attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
 
         for item in aggdata['aggregations']['groupby']['buckets']:
             ip = item['key'][endpoint]
@@ -217,7 +292,7 @@ class MetaData(object):
 
     @staticmethod
     def __isHost(val):
-        if re.match("^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$", val):
+        if re.match(r"^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$", val):
             return True
         return False
 
@@ -315,23 +390,40 @@ class MetaData(object):
         doc = {}
         not_in = []
         sort = {"timestamp" : {"order" : "desc"}}
-        source = ["geolocation",f"external_address.{ipv}_address", "config.site_name",
-                  "host","administrator.name","administrator.email","timestamp"]
+        source = ["geolocation", f"external_address.{ipv}_address", "config.site_name",
+                  "host", "administrator.name", "administrator.email", "timestamp"]
+        
+        # Add timeout and retry for meta searches
+        def search_with_retry(query, description):
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    return hp.es.search(
+                        index='ps_meta', 
+                        query=query, 
+                        size=1, 
+                        _source=source, 
+                        sort=sort,
+                        timeout='15s',
+                        request_timeout=15
+                    )
+                except (ConnectionTimeout, TransportError) as e:
+                    if attempt == max_retries - 1:
+                        print(f"Failed {description} search after {max_retries} attempts: {e}")
+                        return {'hits': {'hits': []}}
+                    time.sleep(2 ** attempt)  # Exponential backoff
+            return {'hits': {'hits': []}}
 
-
-
-        data = hp.es.search(index='ps_meta', query=q_ip, size=1, _source=source, sort=sort)
+        data = search_with_retry(q_ip, "IP")
 
         if data['hits']['hits']:
             records = data['hits']['hits'][0]['_source']
         else:
             if site and site==site:
-                data = hp.es.search(index='ps_meta', query=q_site, size=1, _source=source, sort=sort)
+                data = search_with_retry(q_site, "site")
             if not data['hits']['hits']:
                 if self.__isHost(host):
-                    data = hp.es.search(index='ps_meta', query=q_host, size=1, _source=source, sort=sort)
-
-
+                    data = search_with_retry(q_host, "host")
 
         if len(data['hits']['hits'])>0:
             records = data['hits']['hits'][0]['_source']
