@@ -9,12 +9,13 @@ from data_objects.MetaData import MetaData
 import utils.helpers as hp
 
 
-df = MetaData().metaDf
+meta_obj = MetaData()
+df = meta_obj.metaDf
+
 df = df[~(df['ip'].isnull()) & ~(df['netsite'].isnull())]
 
-# prepare the data for ES - adding _id and _index to send in bulk
+# prepare the data for ES - adding _id to send in bulk
 df['_id'] = df['ip']+df['netsite']
-df['_index'] = "ps_alarms_meta"
 df.fillna('',inplace=True)
 dataDict = df.to_dict('records')
 

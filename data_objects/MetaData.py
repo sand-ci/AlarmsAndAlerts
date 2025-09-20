@@ -50,77 +50,143 @@ class MetaData(object):
       metaDf = metaDf.fillna(metaDf[['site', 'lat', 'lon']].groupby('site').ffill())
       metaDf = metaDf.fillna(metaDf[['site_meta', 'lat', 'lon']].groupby('site_meta').ffill())
 
-      metaDf = self.locateCountry(metaDf)
+      # Only call locateCountry once and check if country column already exists
+      if 'country' not in metaDf.columns:
+          metaDf = self.locateCountry(metaDf)
 
       metaDf = metaDf.drop_duplicates()
 
       print(f"Endpoints without a location: {len(metaDf[metaDf['lat'].isnull()])}")
 
+      # Store the final processed dataframe
       self.metaDf = metaDf
+    
+    def get_dataframe(self):
+        """Return the processed metadata dataframe"""
+        return self.metaDf.copy()  # Return a copy to prevent external modification
+    
+    @property
+    def dataframe(self):
+        """Property to access the dataframe"""
+        return self.metaDf
 
 
     @staticmethod
-    def locateCountry(df):
-        # Create SSL context that bypasses certificate verification        
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        
-        geolocator = Nominatim(
-            user_agent="my_app",
-            ssl_context=ctx,
-            timeout=15
-        )
-
+    def locateCountry(df):        
         def get_country_backup(lat, lon):
-            """Backup method using REST Countries API via coordinates"""
             try:
-                # Use a simple REST API that doesn't require SSL
-                url = f"http://api.geonames.org/countryCodeJSON?lat={lat}&lng={lon}&username=demo"
-                response = requests.get(url, timeout=10, verify=False)
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'countryName' in data:
-                        return data['countryName']
+                # Simple coordinate-to-country mapping for major regions
+                lat, lon = float(lat), float(lon)
+                
+                # Define country boundaries (simplified)
+                country_regions = {
+                    # North America
+                    "United States": [(25, 50), (-125, -65)],
+                    "Canada": [(45, 85), (-140, -50)],
+                    "Mexico": [(14, 33), (-118, -86)],
+                    
+                    # Europe
+                    "Germany": [(47, 55), (5, 16)],
+                    "France": [(42, 51), (-5, 8)],
+                    "United Kingdom": [(49, 61), (-8, 2)],
+                    "Italy": [(36, 47), (6, 19)],
+                    "Spain": [(35, 44), (-10, 5)],
+                    "Netherlands": [(50, 54), (3, 8)],
+                    "Switzerland": [(45, 48), (5, 11)],
+                    "Poland": [(49, 55), (14, 25)],
+                    "Czech Republic": [(48, 51), (12, 19)],
+                    
+                    # Asia
+                    "Japan": [(24, 46), (123, 146)],
+                    "China": [(18, 54), (73, 135)],
+                    "India": [(6, 37), (68, 97)],
+                    "South Korea": [(33, 39), (124, 132)],
+                    
+                    # South America
+                    "Brazil": [(-34, 6), (-74, -32)],
+                    "Argentina": [(-55, -21), (-74, -53)],
+                    "Chile": [(-56, -17), (-76, -66)],
+                    
+                    # Australia/Oceania
+                    "Australia": [(-44, -10), (113, 154)],
+                    "New Zealand": [(-47, -34), (166, 179)],
+                    
+                    # Africa
+                    "South Africa": [(-35, -22), (16, 33)],
+                    "Egypt": [(22, 32), (25, 35)],
+                }
+                
+                # Check which country the coordinates fall into
+                for country, ((min_lat, max_lat), (min_lon, max_lon)) in country_regions.items():
+                    if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
+                        return country
+                        
+                # Fallback based on continent
+                if -90 <= lat <= 90 and -180 <= lon <= 180:
+                    if 35 <= lat <= 71 and -10 <= lon <= 70:
+                        return "Europe"
+                    elif 5 <= lat <= 55 and 60 <= lon <= 150:
+                        return "Asia"
+                    elif 15 <= lat <= 83 and -170 <= lon <= -50:
+                        return "North America"
+                    elif -60 <= lat <= 15 and -85 <= lon <= -30:
+                        return "South America"
+                    elif -50 <= lat <= 40 and -20 <= lon <= 60:
+                        return "Africa"
+                    elif -50 <= lat <= -10 and 110 <= lon <= 180:
+                        return "Australia"
                         
             except Exception as e:
-                print(f"Backup geocoding also failed for {lat}, {lon}: {e}")
+                print(f"Coordinate mapping failed for {lat}, {lon}: {e}")
             
-            return None
+            return "Unknown"
 
-        def get_country(lat, lon):
+        def get_country_from_ip_or_host(df_row):
+            """Extract country from hostname or use coordinate mapping"""
             try:
-                # Try Nominatim first
-                for attempt in range(2):  # Reduced attempts for primary method
-                    try:
-                        location = geolocator.reverse(
-                            (lat, lon), 
-                            exactly_one=True, 
-                            language='en', 
-                            timeout=10
-                        )
-                        if location and hasattr(location, 'raw') and 'address' in location.raw and 'country' in location.raw['address']:
-                            return location.raw['address']['country']
-                    except Exception as e:
-                        if attempt == 1:  # Last attempt with Nominatim
-                            print(f"Nominatim failed for {lat}, {lon}: {e}")
-                            break
-                        time.sleep(1)
+                # Try to extract country from hostname
+                host = df_row.get('host', '')
+                if host and isinstance(host, str):
+                    host_lower = host.lower()
+                    
+                    # Special patterns for specific organizations
+                    if 'ndgf.org' in host_lower:
+                        return 'Sweden'
+                    
+                    # Common country codes in hostnames
+                    country_codes = {
+                        '.us': 'United States', '.edu': 'United States',
+                        '.uk': 'United Kingdom', '.ac.uk': 'United Kingdom',
+                        '.de': 'Germany', '.fr': 'France', '.it': 'Italy',
+                        '.nl': 'Netherlands', '.ch': 'Switzerland',
+                        '.jp': 'Japan', '.cn': 'China', '.au': 'Australia',
+                        '.br': 'Brazil', '.ca': 'Canada', '.mx': 'Mexico',
+                        '.pl': 'Poland', '.cz': 'Czech Republic',
+                        '.es': 'Spain', '.se': 'Sweden', '.no': 'Norway',
+                        '.dk': 'Denmark', '.fi': 'Finland', '.be': 'Belgium',
+                        '.at': 'Austria', '.pt': 'Portugal', '.gr': 'Greece',
+                        '.hu': 'Hungary', '.ro': 'Romania', '.bg': 'Bulgaria',
+                        '.hr': 'Croatia', '.si': 'Slovenia', '.sk': 'Slovakia',
+                        '.ie': 'Ireland', '.is': 'Iceland', '.lu': 'Luxembourg',
+                        '.ua': 'Ukraine', '.ru': 'Russia', '.su': 'Russia',
+                    }
+                    
+                    for code, country in country_codes.items():
+                        if code in host_lower:
+                            return country
                 
-                # Try backup method
-                print(f"Trying backup geocoding for {lat}, {lon}")
-                return get_country_backup(lat, lon)
-                
+                # If hostname doesn't help, use coordinates
+                lat, lon = df_row.get('lat'), df_row.get('lon')
+                if pd.notna(lat) and pd.notna(lon):
+                    return get_country_backup(lat, lon)
+                    
             except Exception as e:
-                print(f"All geocoding methods failed for {lat}, {lon}: {e}")
-                return None
+                print(f"Country extraction failed: {e}")
+            
+            return "Unknown"
 
-        unique_lat_lon = df[['lat', 'lon']].dropna().drop_duplicates()
-        unique_lat_lon['country'] = unique_lat_lon.apply(lambda row: get_country(row['lat'], row['lon']), axis=1)
-        lat_lon_to_country = dict(zip(unique_lat_lon.set_index(['lat', 'lon']).index, unique_lat_lon['country']))
-
-        df['country'] = df.apply(lambda row: lat_lon_to_country.get((row['lat'], row['lon'])) if pd.notna(row['lat']) and pd.notna(row['lon']) else None, axis=1)
-
+        df['country'] = df.apply(get_country_from_ip_or_host, axis=1)
+        
         return df
 
 
