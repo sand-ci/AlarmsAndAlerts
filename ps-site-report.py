@@ -42,8 +42,8 @@ def create_alarms():
                     f"<p><strong>Link:</strong> <a href='https://ps-dash.uc.ssl-hep.org/site_report/{site}'>https://ps-dash.uc.ssl-hep.org/site_report/{site}</a></p>"
                 )
         
-        doc = {'from': fromDayDate.strftime('%d %B %Y'),
-               'to': toDayDate.strftime('%d %B %Y'),
+        doc = {'from': fromDay,
+               'to': toDay,
                'tag': site,
                'report_link': f"https://ps-dash.uc.ssl-hep.org/site_report/{site}",
                'message': f"""
