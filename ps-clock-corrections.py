@@ -17,12 +17,21 @@ end = pd.Timestamp(tend)
 dateFrom = datetime.strftime(start, '%Y-%m-%d %H:%M')
 dateTo = datetime.strftime(end, '%Y-%m-%d %H:%M')
 
-with open('/config/config.json') as json_data:
-    config = json.load(json_data,)
+import os
+import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+env = {}
+for var in ['ES_HOST', 'ES_USER', 'ES_PASS']:
+    env[var] = os.environ.get(var, None)
+    if not env[var]:
+        print('environment variable {} not set!'.format(var))
+        sys.exit(1)
 
 es = Elasticsearch(
-    hosts=[{'host': config['ES_HOST'], 'port':9200, 'scheme':'https'}],
-    http_auth=(config['ES_USER'], config['ES_PASS']),
+    hosts=[{'host': env['ES_HOST'], 'port':9200, 'scheme':'https'}],
+    http_auth=(env['ES_USER'], env['ES_PASS']),
     request_timeout=60)
 
 es.ping()
