@@ -1,8 +1,5 @@
 name: Build SAND-CI Alarm and Alert image
 
-env:
-  ENABLE_WORKFLOW: false
-
 on:
   push:
     branches:
