@@ -1,11 +1,9 @@
 #!/bin/bash
 date
-python ps-indexing.py
+python3 -m ensurepip --upgrade
+python3 -m pip install -r requirements.txt
+python3 ps-indexing.py > ps-indexing.log 2>&1
 rc=$?; if [[ $rc != 0 ]]; then 
-    echo "problem checking ps indexing. Exiting."
-fi
-echo 'starting Nebraska'
-python ps-indexing.nebraska.py
-rc=$?; if [[ $rc != 0 ]]; then 
-    echo "problem checking ps indexing. Exiting."
+    echo "problem running ps-indexing alarm. Exiting."
+    exit $rc
 fi

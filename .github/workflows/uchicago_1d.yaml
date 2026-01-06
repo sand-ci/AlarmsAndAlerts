@@ -1,0 +1,161 @@
+name: uchicago_1d
+on:
+    schedule:
+        - cron: "20 3 * * *"
+
+permissions:
+    contents: read
+
+jobs:
+    ps-asn-anomalies:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: execute
+              run: ./ps-asn-anomalies.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-asn-anomalies.log
+
+    ps-clock-corrections:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-clock-corrections.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-clock-corrections.log
+
+    ps-packetloss:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-packetloss.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-packetloss.log
+
+    ps-high-owd:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-high-owd.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-high-owd.log
+
+    ps-throughput:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-throughput.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-throughput.log
+
+    ps-site-report:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-site-report.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-site-report.log
+
+    ps-trace:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-trace.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-trace.log
+
+    ps-hosts-not-found:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-hosts-not-found.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-hosts-not-found.log

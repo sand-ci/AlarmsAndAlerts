@@ -1,4 +1,4 @@
-elasticsearch==8.18.0
+elasticsearch
 numpy
 pandas
 requests
@@ -11,4 +11,4 @@ psconfig-client
 pymemcache
 tqdm
 psutil
-# ipython 
+dotenv

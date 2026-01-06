@@ -1,10 +1,10 @@
 #!/bin/bash
-# Run the high one-way delay detection script.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
-# If you use a virtual environment, uncomment and set the path:
-# source /path/to/venv/bin/activate
-
-python ps-high-owd.py "$@"
+date
+python3 -m ensurepip --upgrade
+python3 -m pip install -r requirements.txt
+python3 ps-high-owd.py > ps-high-owd.log 2>&1
+rc=$?; if [[ $rc != 0 ]]; then 
+    echo "problem running ps-high-owd alarm. Exiting."
+    exit $rc
+fi

@@ -1,0 +1,47 @@
+name: uchicago_1w
+on:
+    schedule:
+        - cron: "17 * * * 1"
+
+permissions:
+    contents: read
+
+jobs:
+    ps-asns:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: execute
+              run: ./ps-asns.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-asns.log
+
+    ps-host-unresolvable:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+            - name: execute
+              run: ./ps-host-unresolvable.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-host-unresolvable.log

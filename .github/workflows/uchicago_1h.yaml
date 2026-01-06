@@ -1,0 +1,28 @@
+name: uchicago_1h
+on:
+    schedule:
+        - cron: "15 * * * *"
+
+permissions:
+    contents: read
+
+jobs:
+    ps-alarms-meta:
+        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: execute
+              run: ./ps-alarms-meta.sh
+              shell: bash
+              env:
+                  ES_HOST: ${{ secrets.ES_HOST }}
+                  ES_USER: ${{ secrets.ES_USER }}
+                  ES_PASS: ${{ secrets.ES_PASS }}
+            - name: upload log
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: ${{ github.job }}-logs
+                  path: |
+                      ps-alarms-meta.log
