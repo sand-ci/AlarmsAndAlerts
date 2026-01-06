@@ -5,6 +5,8 @@ import os
 import json
 import pandas as pd
 import numpy as np
+import sys
+from dotenv import load_dotenv
 
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
@@ -18,12 +20,18 @@ INDICES = ['ps_packetloss', 'ps_owd',
            'ps_retransmits', 'ps_throughput', 'ps_trace']
 
 user, passwd, mapboxtoken = None, None, None
-with open('/config/config.json') as json_data:
-    config = json.load(json_data,)
+
+load_dotenv()
+env = {}
+for var in ['ES_HOST', 'ES_USER', 'ES_PASS']:
+    env[var] = os.environ.get(var, None)
+    if not env[var]:
+        print('environment variable {} not set!'.format(var))
+        sys.exit(1)
 
 es = Elasticsearch(
-    hosts=[{'host': config['ES_HOST'], 'port':9200, 'scheme':'https'}],
-    http_auth=(config['ES_USER'], config['ES_PASS']),
+    hosts=[{'host': env['ES_HOST'], 'port':9200, 'scheme':'https'}],
+    http_auth=(env['ES_USER'], env['ES_PASS']),
     request_timeout=60)
 
 
