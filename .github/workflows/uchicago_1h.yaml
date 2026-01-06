@@ -8,7 +8,7 @@ permissions:
 
 jobs:
     ps-alarms-meta:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
 

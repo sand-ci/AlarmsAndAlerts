@@ -8,7 +8,7 @@ permissions:
 
 jobs:
     ps-asns:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
 
@@ -28,7 +28,7 @@ jobs:
                       ps-asns.log
 
     ps-host-unresolvable:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute

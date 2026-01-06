@@ -8,7 +8,7 @@ permissions:
 
 jobs:
     ps-asn-anomalies:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
 
@@ -28,7 +28,7 @@ jobs:
                       ps-asn-anomalies.log
 
     ps-clock-corrections:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -47,7 +47,7 @@ jobs:
                       ps-clock-corrections.log
 
     ps-packetloss:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -66,7 +66,7 @@ jobs:
                       ps-packetloss.log
 
     ps-high-owd:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -85,7 +85,7 @@ jobs:
                       ps-high-owd.log
 
     ps-throughput:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -104,7 +104,7 @@ jobs:
                       ps-throughput.log
 
     ps-site-report:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -123,7 +123,7 @@ jobs:
                       ps-site-report.log
 
     ps-trace:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
@@ -142,7 +142,7 @@ jobs:
                       ps-trace.log
 
     ps-hosts-not-found:
-        runs-on: arc-runner-set-uchicago-alarm-alert-system
+        runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
             - uses: actions/checkout@v6
             - name: execute
