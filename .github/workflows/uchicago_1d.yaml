@@ -21,7 +21,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -40,7 +40,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -59,7 +59,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -78,7 +78,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -97,7 +97,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -116,7 +116,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -135,7 +135,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -154,7 +154,7 @@ jobs:
     #               ES_PASS: ${{ secrets.ES_PASS }}
     #         - name: upload log
     #           if: always()
-    #           uses: actions/upload-artifact@v6
+    #           uses: actions/upload-artifact@v7
     #           with:
     #               name: ${{ github.job }}-logs
     #               path: |
