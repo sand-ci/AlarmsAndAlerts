@@ -10,7 +10,7 @@ jobs:
     ps-asn-anomalies:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: execute
               run: bash ps-asn-anomalies.sh
@@ -21,7 +21,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -30,7 +30,7 @@ jobs:
     ps-clock-corrections:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-clock-corrections.sh
               shell: bash
@@ -40,7 +40,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -49,7 +49,7 @@ jobs:
     ps-packetloss:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-packetloss.sh
               shell: bash
@@ -59,7 +59,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -68,7 +68,7 @@ jobs:
     ps-high-owd:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-high-owd.sh
               shell: bash
@@ -78,7 +78,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -87,7 +87,7 @@ jobs:
     ps-throughput:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-throughput.sh
               shell: bash
@@ -97,7 +97,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -106,7 +106,7 @@ jobs:
     ps-site-report:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-site-report.sh
               shell: bash
@@ -116,7 +116,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -125,7 +125,7 @@ jobs:
     ps-trace:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - name: execute
               run: ./ps-trace.sh
               shell: bash
@@ -135,7 +135,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
@@ -144,7 +144,7 @@ jobs:
     # ps-hosts-not-found:
     #     runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
     #     steps:
-    #         - uses: actions/checkout@v6
+    #         - uses: actions/checkout@v7
     #         - name: execute
     #           run: ./ps-hosts-not-found.sh
     #           shell: bash
@@ -154,7 +154,7 @@ jobs:
     #               ES_PASS: ${{ secrets.ES_PASS }}
     #         - name: upload log
     #           if: always()
-    #           uses: actions/upload-artifact@v6
+    #           uses: actions/upload-artifact@v7
     #           with:
     #               name: ${{ github.job }}-logs
     #               path: |

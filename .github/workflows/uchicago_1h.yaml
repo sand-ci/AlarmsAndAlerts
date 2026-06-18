@@ -10,7 +10,7 @@ jobs:
     ps-alarms-meta:
         runs-on: arc-runner-set-uchicago-alarm-alert-system-ps
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: execute
               run: ./ps-alarms-meta.sh
@@ -21,7 +21,7 @@ jobs:
                   ES_PASS: ${{ secrets.ES_PASS }}
             - name: upload log
               if: always()
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ github.job }}-logs
                   path: |
