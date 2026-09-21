@@ -3,6 +3,7 @@ name: uchicago_30m
 on:
     schedule:
         - cron: "25,55 * * * *"
+    workflow_dispatch:
 
 permissions:
     contents: read

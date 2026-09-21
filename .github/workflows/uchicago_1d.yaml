@@ -2,6 +2,7 @@ name: uchicago_1d
 on:
     schedule:
         - cron: "20 3 * * *"
+    workflow_dispatch:
 
 permissions:
     contents: read

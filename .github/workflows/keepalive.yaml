@@ -1,0 +1,53 @@
+name: keepalive
+
+# GitHub disables scheduled workflows in a repository that has had no commit
+# activity for 60 days. The uchicago_* workflows run on their own runner set and
+# never touch the repo, so a long quiet stretch silently stops all of them --
+# which is what happened between 2026-03-26 and now.
+#
+# This job runs monthly and does two things:
+#   1. pushes an empty commit, so the 60-day inactivity timer never expires;
+#   2. re-enables every workflow in the repo, so that if one did get disabled
+#      (or someone disabled it by hand) it comes back on its own.
+#
+# Pushing to main is safe here: the only push-triggered workflow
+# (main.yaml_disabled) is parked, so no image build or deploy is triggered.
+#
+# Note the bootstrap: this workflow is itself on a schedule, so it has to be
+# enabled once by hand in the Actions tab. After that it keeps itself, and
+# everything else, alive.
+
+on:
+    schedule:
+        - cron: "0 5 1 * *"
+    workflow_dispatch:
+
+permissions:
+    actions: write
+    contents: write
+
+jobs:
+    keepalive:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  fetch-depth: 1
+
+            - name: push empty commit
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git commit --allow-empty -m "chore: keepalive for scheduled workflows"
+                  git push
+
+            - name: re-enable disabled workflows
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh api "repos/$GITHUB_REPOSITORY/actions/workflows" --paginate \
+                      --jq '.workflows[] | select(.state != "active") | .id' \
+                  | while read -r id; do
+                      echo "re-enabling workflow $id"
+                      gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/enable"
+                  done
